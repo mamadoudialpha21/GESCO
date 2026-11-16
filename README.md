@@ -57,7 +57,7 @@ envoyez-moi alors le message d'erreur.
 3. Le premier job (`Analyse et tests`) lance les tests. L'analyse statique y est
    informative : un avertissement de style n'arrête rien, c'est l'échec d'un
    test ou de la compilation qui est bloquant. Le second job (`Compilation et
-   installateur .exe`) compile l'application et produit `GESCO-Setup-0.1.0.exe`,
+   installateur .exe`) compile l'application et produit `GESCO-Setup-0.3.0.exe`,
    téléchargeable en bas de la page de l'exécution (*Artifacts*).
 4. Si une étape devient rouge, copiez-moi son message d'erreur : je corrige.
 

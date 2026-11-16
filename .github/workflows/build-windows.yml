@@ -79,6 +79,11 @@ jobs:
           }
           "APP_DIR=$dossier" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Test de demarrage (lance gesco.exe et controle la base creee)
+        shell: pwsh
+        continue-on-error: true
+        run: ./scripts/test_demarrage_windows.ps1 -Dossier $env:APP_DIR
+
       - name: Installer Inno Setup
         run: choco install innosetup -y --no-progress
 
