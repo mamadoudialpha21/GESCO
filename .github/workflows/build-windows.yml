@@ -1,0 +1,98 @@
+name: GESCO - tests et installateur Windows
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Analyse et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # SQLite natif pour les tests de la base de données.
+      - name: Installer SQLite
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Générer les dossiers de plateforme
+        run: flutter create --platforms=windows --project-name gesco --org gn.gesco .
+
+      - name: Dépendances
+        run: flutter pub get
+
+      # L'analyse signale les avertissements de style sans bloquer la suite :
+      # ce sont les tests et la compilation qui décident du succès.
+      - name: Analyse statique (informative)
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos
+
+      - name: Tests (moteur de calcul, base de données, interface)
+        run: flutter test --reporter expanded
+
+  windows:
+    name: Compilation et installateur .exe
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Générer les dossiers de plateforme
+        run: flutter create --platforms=windows --project-name gesco --org gn.gesco .
+
+      - name: Dépendances
+        run: flutter pub get
+
+      - name: Titre de la fenêtre
+        shell: pwsh
+        run: |
+          $f = 'windows\runner\main.cpp'
+          $texte = Get-Content $f -Raw
+          $texte = $texte.Replace('L"gesco"', 'L"GESCO - Gestion des notes scolaires"')
+          Set-Content -Path $f -Value $texte -NoNewline -Encoding utf8
+
+      - name: Compiler l'application Windows
+        run: flutter build windows --release
+
+      - name: Localiser le dossier de l'application et ajouter les DLL Visual C++
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build\windows -Recurse -Filter gesco.exe | Select-Object -First 1
+          if (-not $exe) { throw "gesco.exe introuvable apres la compilation" }
+          $dossier = $exe.DirectoryName
+          Write-Host "Dossier de l'application : $dossier"
+          foreach ($dll in 'msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll') {
+            $source = Join-Path $env:SystemRoot "System32\$dll"
+            if (Test-Path $source) { Copy-Item $source $dossier -Force } else { Write-Warning "$dll absente" }
+          }
+          "APP_DIR=$dossier" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Installer Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Construire l'installateur
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe introuvable" }
+          & $iscc "/DBuildDir=$env:APP_DIR" installer\gesco.iss
+          if ($LASTEXITCODE -ne 0) { throw "Echec de la compilation de l'installateur" }
+
+      - name: Publier l'installateur
+        uses: actions/upload-artifact@v4
+        with:
+          name: GESCO-installateur-windows
+          path: installer/Output/*.exe
+          if-no-files-found: error

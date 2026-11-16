@@ -1,0 +1,17 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ephemeral/
+*.iml
+.idea/
+.vscode/
+
+# Installateur généré
+installer/Output/
+
+# Divers
+*.log
+.DS_Store
