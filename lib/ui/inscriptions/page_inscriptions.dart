@@ -327,8 +327,9 @@ class _PageInscriptionsState extends State<PageInscriptions> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
           child: Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -339,7 +340,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
                 child: TextField(
                   key: const Key('recherche_eleves'),
                   controller: _recherche,
-                  decoration: champ('Rechercher un nom, un prénom ou un matricule')
+                  decoration: champ('Nom, prénom ou matricule')
                       .copyWith(
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: recherche
@@ -396,15 +397,18 @@ class _PageInscriptionsState extends State<PageInscriptions> {
             ],
           ),
         ),
+        const Divider(height: 1),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
           child: Text(
             _decompte(affiches.length, total, recherche),
             key: const Key('decompte_eleves'),
-            style: const TextStyle(color: CouleursGesco.gris),
+            style: const TextStyle(
+              color: CouleursGesco.gris,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const Divider(height: 1),
         Expanded(
           child: affiches.isEmpty
               ? MessageVide(
@@ -415,7 +419,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
                   icone: Icons.people_outline,
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                   itemCount: affiches.length,
                   itemBuilder: (context, index) =>
                       _ligne(context, affiches[index], donnees),
@@ -432,15 +436,12 @@ class _PageInscriptionsState extends State<PageInscriptions> {
   }
 
   Widget _ligne(BuildContext context, EleveInscrit e, _Donnees donnees) {
-    final details = <String>[
-      e.matricule,
-      e.classeNom,
-      if (analyserDateIso(e.dateNaissance) != null)
-        'né(e) le ${formaterDateFr(e.dateNaissance)}',
-    ];
+    final naissance = analyserDateIso(e.dateNaissance) != null
+        ? 'né(e) le ${formaterDateFr(e.dateNaissance)}'
+        : null;
     final initiales = _initiales(e);
 
-    return Card(
+    return Carte(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: () => _voirFiche(e, donnees),
@@ -453,7 +454,23 @@ class _PageInscriptionsState extends State<PageInscriptions> {
           e.nomComplet,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(details.join('  ·  ')),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(e.matricule),
+              Etiquette(
+                e.classeNom,
+                couleur: CouleursGesco.bleu,
+                fond: CouleursGesco.bleuClair,
+              ),
+              if (naissance != null) Text(naissance),
+            ],
+          ),
+        ),
         trailing: PopupMenuButton<_Action>(
           tooltip: 'Actions',
           onSelected: (action) {

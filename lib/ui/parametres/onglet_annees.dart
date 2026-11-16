@@ -101,7 +101,8 @@ class OngletAnnees extends StatelessWidget {
                 ),
               ),
             for (final annee in annees)
-              Card(
+              Carte(
+                margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: const Icon(Icons.event, color: CouleursGesco.bleu),
                   title: Row(

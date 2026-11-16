@@ -20,7 +20,18 @@ class CouleursGesco {
   static const Color bleuClair = Color(0xFFE3F0FB);
   static const Color grisClair = Color(0xFFF1F2F4);
 
-  static const Color fond = Color(0xFFF6F8FB);
+  /// Fond des pages.
+  static const Color fond = Color(0xFFF4F6FA);
+
+  /// Bleu profond du menu latéral et des bandeaux.
+  static const Color bleuFonce = Color(0xFF0F3566);
+
+  /// Texte principal et trait fin des cartes et séparateurs.
+  static const Color texte = Color(0xFF1C2330);
+  static const Color bordure = Color(0xFFE1E6EE);
+
+  /// Trait des champs de saisie (un peu plus marqué que celui des cartes).
+  static const Color bordureChamp = Color(0xFFB9C2D0);
 }
 
 /// Couleur associée à un niveau de résultat (vert / orange / rouge).
@@ -38,9 +49,34 @@ Color fondNiveau(NiveauResultat niveau) => switch (niveau) {
     };
 
 ThemeData construireTheme() {
+  final forme = RoundedRectangleBorder(borderRadius: BorderRadius.circular(10));
   return ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(seedColor: CouleursGesco.bleu),
     scaffoldBackgroundColor: CouleursGesco.fond,
+    dividerTheme: const DividerThemeData(
+      color: CouleursGesco.bordure,
+      space: 1,
+      thickness: 1,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        shape: forme,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        shape: forme,
+        side: const BorderSide(color: CouleursGesco.bordureChamp),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: forme,
+    ),
   );
 }

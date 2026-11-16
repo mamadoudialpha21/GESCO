@@ -111,7 +111,7 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
           alignment: Alignment.centerLeft,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
-            child: Card(
+            child: Carte(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(

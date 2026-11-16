@@ -298,10 +298,14 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   children: [
                     for (final r in donnees.classes)
-                      Card(
-                        color: r.classe.id == donnees.selection
+                      Carte(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        couleur: r.classe.id == donnees.selection
                             ? CouleursGesco.bleuClair
-                            : null,
+                            : Colors.white,
+                        bordure: r.classe.id == donnees.selection
+                            ? CouleursGesco.bleu
+                            : CouleursGesco.bordure,
                         child: ListTile(
                           selected: r.classe.id == donnees.selection,
                           title: Text(
@@ -389,7 +393,7 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
             ),
           )
         else
-          Card(
+          Carte(
             child: Column(
               children: [
                 for (var i = 0; i < matieres.length; i++) ...[

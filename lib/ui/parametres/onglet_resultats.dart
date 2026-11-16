@@ -283,7 +283,7 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
     String? aide,
     required List<Widget> enfants,
   }) {
-    return Card(
+    return Carte(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
         padding: const EdgeInsets.all(20),

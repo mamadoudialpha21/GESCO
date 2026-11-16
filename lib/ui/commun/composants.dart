@@ -2,15 +2,68 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Style commun des champs de saisie.
+OutlineInputBorder _traitChamp(Color couleur, [double epaisseur = 1]) {
+  return OutlineInputBorder(
+    borderRadius: BorderRadius.circular(10),
+    borderSide: BorderSide(color: couleur, width: epaisseur),
+  );
+}
+
+/// Style commun des champs de saisie : fond blanc, coins arrondis.
 InputDecoration champ(String label, {String? aide, String? erreur}) {
   return InputDecoration(
     labelText: label,
     helperText: aide,
     errorText: erreur,
-    border: const OutlineInputBorder(),
     isDense: true,
+    filled: true,
+    fillColor: Colors.white,
+    border: _traitChamp(CouleursGesco.bordureChamp),
+    enabledBorder: _traitChamp(CouleursGesco.bordureChamp),
+    focusedBorder: _traitChamp(CouleursGesco.bleu, 2),
+    errorBorder: _traitChamp(CouleursGesco.rouge),
+    focusedErrorBorder: _traitChamp(CouleursGesco.rouge, 2),
   );
+}
+
+/// Carte plate : fond blanc, coins arrondis, fin trait gris, sans ombre.
+///
+/// Remplace `Card` partout pour que l'aspect soit identique sur toutes les
+/// versions de Flutter (et dans les captures de test, où les ombres sont
+/// dessinées en traits noirs).
+class Carte extends StatelessWidget {
+  const Carte({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+    this.margin = EdgeInsets.zero,
+    this.couleur = Colors.white,
+    this.bordure = CouleursGesco.bordure,
+    this.onTap,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final Color couleur;
+  final Color bordure;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final contenu = Padding(padding: padding, child: child);
+    return Card(
+      margin: margin,
+      elevation: 0,
+      color: couleur,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: bordure),
+      ),
+      child: onTap == null ? contenu : InkWell(onTap: onTap, child: contenu),
+    );
+  }
 }
 
 /// Message centré affiché quand il n'y a rien à montrer.

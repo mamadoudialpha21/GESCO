@@ -119,6 +119,10 @@ void main() {
 
   testWidgets('captures des écrans', timeout: const Timeout(Duration(minutes: 4)),
       (tester) async {
+    // Dans les tests, Flutter remplace les ombres par des traits noirs ; on
+    // veut ici le rendu réel de l'application.
+    debugDisableShadows = false;
+    addTearDown(() => debugDisableShadows = true);
     await tester.runAsync(chargerPolices);
 
     final gdb = await tester.runAsync(() => GescoDatabase.ouvrir(
@@ -175,7 +179,7 @@ void main() {
       await attendre();
     }
 
-    await taille(1280, 800);
+    await taille(1280, 860);
     await tester.pumpWidget(RepaintBoundary(key: cle, child: GescoApp(etat: etat)));
 
     await etape('01_tableau_de_bord', () async {});
