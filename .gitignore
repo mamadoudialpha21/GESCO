@@ -15,3 +15,6 @@ installer/Output/
 # Divers
 *.log
 .DS_Store
+
+# Captures produites par tool/captures_test.dart
+/captures/

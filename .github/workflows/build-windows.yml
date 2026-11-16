@@ -10,6 +10,8 @@ jobs:
   tests:
     name: Analyse et tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +38,31 @@ jobs:
 
       - name: Tests (moteur de calcul, base de données, interface)
         run: flutter test --reporter expanded
+
+      # Rend les écrans avec des données d'exemple (sert à relire l'interface).
+      # Ne bloque jamais le workflow.
+      - name: Captures d'écran des écrans
+        continue-on-error: true
+        run: flutter test tool/captures_test.dart --reporter expanded
+
+      - name: Publier les captures sur la branche « captures »
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          if ls captures/*.png >/dev/null 2>&1; then
+            tmp=$(mktemp -d)
+            cp captures/*.png "$tmp"/
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git checkout --orphan captures
+            git rm -rf --quiet .
+            cp "$tmp"/*.png .
+            git add -- *.png
+            git commit --quiet -m "Captures d'ecran (execution ${{ github.run_id }})"
+            git push --force origin captures
+          else
+            echo "Aucune capture produite"
+          fi
 
   windows:
     name: Compilation et installateur .exe
