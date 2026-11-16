@@ -9,10 +9,10 @@ Priorité actuelle : version **Windows** complète avec installateur `.exe`.
 
 | Étape | Contenu | État |
 |---|---|---|
-| 1 | Socle : projet, schéma SQLite, migrations, contrôle d'intégrité | Écrit, **non exécuté** |
-| 2 | Moteur de calcul : moyennes, rangs, mentions, décisions, statistiques | Écrit, **non exécuté** |
-| 3 | Paramètres : établissement et logo, années, classes, matières, coefficients, seuils | Écrit, **non exécuté** |
-| 4 | Inscriptions et fiches élèves : ajout, modification, fiche, suppression, recherche, réinscription, photo | Écrit, **non exécuté** |
+| 1 | Socle : projet, schéma SQLite, migrations, contrôle d'intégrité | Testé automatiquement (tests réussis sur GitHub) |
+| 2 | Moteur de calcul : moyennes, rangs, mentions, décisions, statistiques | Testé automatiquement (tests réussis sur GitHub) |
+| 3 | Paramètres : établissement et logo, années, classes, matières, coefficients, seuils | Testé automatiquement (254 tests réussis) ; **interface non vérifiée à la main** |
+| 4 | Inscriptions et fiches élèves : ajout, modification, fiche, suppression, recherche, réinscription, photo | Testé automatiquement (254 tests réussis) ; **interface non vérifiée à la main** |
 | 5 | Saisie des notes avec enregistrement automatique | À faire |
 | 6 | Classements, exports PDF / Excel, impression | À faire |
 | 7 | Bulletins trimestriels et annuel (PDF A4) | À faire |
@@ -23,11 +23,24 @@ Priorité actuelle : version **Windows** complète avec installateur `.exe`.
 
 ## Ce que « vérifié » veut dire ici
 
-Le code a été rédigé dans un environnement qui **ne peut pas installer Flutter
-ni Dart** (les sites nécessaires y sont bloqués). **Aucun test Dart n'a donc été
-exécuté et l'application n'a jamais été lancée.** Rien n'est considéré comme
-fonctionnel tant que les tests n'ont pas réussi chez vous (ou sur GitHub) et que
-la liste de `docs/VERIFICATION_MANUELLE.md` n'a pas été parcourue.
+**Résultat réel du dernier passage sur GitHub** (Windows, Flutter stable 3.50) :
+
+| Contrôle | Résultat |
+|---|---|
+| Analyse statique du code | 0 erreur, 0 avertissement (quelques remarques d'information, sans effet) |
+| Tests automatiques (moteur de calcul, base de données, dépôts, formulaires d'inscription) | **254 sur 254 réussis** |
+| Compilation Windows (`flutter build windows --release`) | Réussie |
+| Démarrage de `gesco.exe` sur Windows | L'application s'ouvre, la fenêtre répond, la base est créée au bon endroit avec les 9 tables, le trigger de verrouillage de classe et un contrôle d'intégrité correct |
+| Installateur `GESCO-Setup-0.3.0.exe` (Inno Setup) | Produit (environ 11 Mo) |
+
+**Ce qui n'est pas encore vérifié** : l'installation elle-même, l'aspect et le
+comportement de l'interface au clavier et à la souris, l'impression, les
+sauvegardes. Rien de cela n'est considéré comme fonctionnel tant que la liste de
+`docs/VERIFICATION_MANUELLE.md` n'a pas été parcourue sur un vrai PC.
+
+Avant ce premier passage, le code avait été contrôlé sans Flutter (le poste de
+développement initial ne pouvait pas l'installer) ; ces contrôles restent utiles
+et sont conservés ci-dessous.
 
 Ce qui a pu être contrôlé sans Flutter, avec de vrais outils :
 
@@ -41,10 +54,10 @@ Ce qui a pu être contrôlé sans Flutter, avec de vrais outils :
 | Contrôle croisé interface ↔ dépôts | Méthodes, paramètres nommés requis/inconnus, imports inutilisés ou manquants (54 fichiers) | Heuristique : n'est pas le compilateur ; 7 faux positifs connus (listes locales nommées `classes`/`matieres`) |
 | Valeurs attendues des tests du moteur | Recalculées avec un programme indépendant | Ne remplace pas l'exécution |
 
-Ces contrôles ont déjà permis de corriger des défauts (syntaxe Dart trop
-récente, comparaison de noms accentués), mais **une erreur de compilation ou de
-type reste possible**. Le premier passage sur GitHub ou sur votre PC le dira ;
-envoyez-moi alors le message d'erreur.
+Ces contrôles ont permis de corriger des défauts avant le premier passage
+(syntaxe Dart trop récente, comparaison de noms accentués). Le premier passage
+sur GitHub a ensuite relevé un seul défaut, dans un test (pas dans
+l'application), corrigé depuis.
 
 ## Vérifier et compiler
 
