@@ -97,7 +97,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
           );
           _etat.donneesModifiees();
           if (mounted) {
-            afficherMessage(this.context, '${eleve.nomComplet} est inscrit(e).');
+            afficherMessage(context, '${eleve.nomComplet} est inscrit(e).');
           }
         },
       ),
@@ -139,7 +139,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
           );
           _etat.donneesModifiees();
           if (mounted) {
-            afficherMessage(this.context, 'La fiche de ${modifie.nomComplet} est modifiée.');
+            afficherMessage(context, 'La fiche de ${modifie.nomComplet} est modifiée.');
           }
         },
       ),

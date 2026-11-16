@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gesco/data/gesco_database.dart';
@@ -491,7 +492,8 @@ void main() {
     });
 
     test('un logo enregistré est relu à l\'identique', () async {
-      final logo = List<int>.generate(256, (i) => i);
+      // SQLite attend un Uint8List pour un BLOB (c'est ce que fournit l'application).
+      final logo = Uint8List.fromList(List<int>.generate(256, (i) => i));
       await db.update('etablissement', {'nom': 'Lycée Test', 'logo': logo});
       final ligne = (await db.query('etablissement')).first;
       expect(ligne['nom'], 'Lycée Test');
