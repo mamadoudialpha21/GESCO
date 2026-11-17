@@ -50,11 +50,16 @@ class MatiereCoef {
     required this.id,
     required this.nom,
     required this.coefficient,
+    this.facultative = false,
   }) : assert(coefficient > 0);
 
   final int id;
   final String nom;
   final int coefficient;
+
+  /// Matière facultative : ses notes figurent sur les documents mais ne
+  /// comptent pas dans les moyennes générales.
+  final bool facultative;
 }
 
 /// Toutes les données d'un élève nécessaires au calcul pour une classe.

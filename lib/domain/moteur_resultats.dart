@@ -7,13 +7,16 @@
 /// - chaque moyenne publiée est arrondie à 2 décimales (demi vers le haut) ;
 ///   les moyennes de niveau supérieur sont calculées à partir des moyennes
 ///   publiées du niveau inférieur (vérifiable à la main sur les documents) ;
-/// - trimestre = moyenne des moyennes mensuelles disponibles ;
-///   année = moyenne des moyennes trimestrielles disponibles ;
+/// - période (trimestre, semestre, séquence) = moyenne des moyennes mensuelles
+///   disponibles de ses mois ;
+///   année = moyenne des moyennes de périodes disponibles ;
+/// - les matières facultatives ne comptent pas dans les moyennes générales ;
 /// - rang : classement par moyenne décroissante, ex æquo = même rang
 ///   (1, 1, 3 ...).
 library;
 
 import 'arrondi.dart';
+import 'calendrier.dart';
 import 'modeles.dart';
 import 'periodes.dart';
 
@@ -47,6 +50,23 @@ class ResultatEleve {
   final bool incomplet;
 }
 
+/// Note et rang d'un élève dans une matière (classement par matière).
+class ResultatMatiere {
+  const ResultatMatiere({
+    required this.inscriptionId,
+    required this.note,
+    required this.rang,
+  });
+
+  final int inscriptionId;
+
+  /// Note sur 20 en centièmes, ou null si l'élève n'a pas de note chiffrée.
+  final int? note;
+
+  /// Rang dans la matière (1 = premier), ou null sans note.
+  final int? rang;
+}
+
 /// Calcule les rangs avec ex æquo (classement « olympique » : 1, 1, 3).
 /// Les élèves sans moyenne (valeur null) n'ont pas de rang.
 Map<int, int> calculerRangs(Map<int, int?> moyennes) {
@@ -77,6 +97,7 @@ class MoteurResultats {
     required this.matieres,
     required this.eleves,
     this.config = ConfigResultats.defaut,
+    this.calendrier = Calendrier.defaut,
   }) : assert(
           eleves.map((e) => e.inscriptionId).toSet().length == eleves.length,
           'Deux élèves ont le même identifiant d\'inscription.',
@@ -85,6 +106,11 @@ class MoteurResultats {
   final List<MatiereCoef> matieres;
   final List<DonneesEleve> eleves;
   final ConfigResultats config;
+  final Calendrier calendrier;
+
+  /// Matières qui comptent dans les moyennes générales.
+  Iterable<MatiereCoef> get _matieresComptees =>
+      matieres.where((m) => !m.facultative);
 
   // ---------------------------------------------------------------- Mois
 
@@ -93,7 +119,7 @@ class MoteurResultats {
     _verifierMois(mois);
     var somme = 0;
     var coefficients = 0;
-    for (final matiere in matieres) {
+    for (final matiere in _matieresComptees) {
       final saisie = eleve.saisie(matiere.id, mois);
       if (saisie != null && saisie.estNumerique) {
         somme += saisie.centiemes! * matiere.coefficient;
@@ -108,90 +134,136 @@ class MoteurResultats {
   /// matière. Une matière « dispensé » n'est pas un manque.
   bool moisIncomplet(DonneesEleve eleve, int mois) {
     _verifierMois(mois);
-    for (final matiere in matieres) {
+    for (final matiere in _matieresComptees) {
       final saisie = eleve.saisie(matiere.id, mois);
       if (saisie == null || saisie.etat == EtatNote.absent) return true;
     }
     return false;
   }
 
-  // ----------------------------------------------------------- Trimestre
+  // ------------------------------------------------- Périodes et année
 
-  /// Moyenne du trimestre : moyenne des moyennes mensuelles disponibles.
-  int? moyenneTrimestre(DonneesEleve eleve, int trimestre) {
-    final valeurs = <int>[];
-    for (final mois in _moisDuTrimestre(trimestre)) {
-      final v = moyenneMois(eleve, mois);
-      if (v != null) valeurs.add(v);
+  /// Moyenne sur une étendue (mois, période, séquence ou année).
+  int? moyenne(DonneesEleve eleve, Portee portee) {
+    if (portee.estMois) return moyenneMois(eleve, portee.moisChoisi!);
+    if (portee.estPeriode) {
+      return _moyenneDe([
+        for (final mois in portee.periodeChoisie!.mois)
+          if (moyenneMois(eleve, mois) != null) moyenneMois(eleve, mois)!,
+      ]);
     }
-    return _moyenneDe(valeurs);
+    return _moyenneDe([
+      for (final p in calendrier.periodes)
+        if (moyenne(eleve, Portee.periode(p)) != null)
+          moyenne(eleve, Portee.periode(p))!,
+    ]);
   }
 
-  /// Vrai si un des mois du trimestre n'a pas de moyenne ou est incomplet.
-  bool trimestreIncomplet(DonneesEleve eleve, int trimestre) {
-    return _moisDuTrimestre(trimestre).any(
-      (mois) => moyenneMois(eleve, mois) == null || moisIncomplet(eleve, mois),
+  /// Vrai s'il manque des notes dans l'étendue : un mois sans moyenne ou
+  /// incomplet, ou une période incomplète pour l'année.
+  bool incomplet(DonneesEleve eleve, Portee portee) {
+    if (portee.estMois) return moisIncomplet(eleve, portee.moisChoisi!);
+    if (portee.estPeriode) {
+      return portee.periodeChoisie!.mois.any(
+        (mois) => moyenneMois(eleve, mois) == null || moisIncomplet(eleve, mois),
+      );
+    }
+    return calendrier.periodes.any(
+      (p) => moyenne(eleve, Portee.periode(p)) == null ||
+          incomplet(eleve, Portee.periode(p)),
     );
   }
 
-  /// Note d'une matière pour un trimestre (bulletin) : moyenne de ses notes
-  /// mensuelles chiffrées, ou null s'il n'y en a aucune.
-  int? noteMatiereTrimestre(DonneesEleve eleve, int matiereId, int trimestre) {
-    final valeurs = <int>[];
-    for (final mois in _moisDuTrimestre(trimestre)) {
-      final saisie = eleve.saisie(matiereId, mois);
-      if (saisie != null && saisie.estNumerique) {
-        valeurs.add(saisie.centiemes!);
+  /// Note d'une matière sur une étendue : moyenne de ses notes mensuelles
+  /// chiffrées (période), ou moyenne de ses notes de période (année). Null
+  /// s'il n'y en a aucune.
+  int? noteMatiere(DonneesEleve eleve, int matiereId, Portee portee) {
+    if (portee.estMois) {
+      _verifierMois(portee.moisChoisi!);
+      final saisie = eleve.saisie(matiereId, portee.moisChoisi!);
+      return saisie != null && saisie.estNumerique ? saisie.centiemes : null;
+    }
+    if (portee.estPeriode) {
+      final valeurs = <int>[];
+      for (final mois in portee.periodeChoisie!.mois) {
+        final saisie = eleve.saisie(matiereId, mois);
+        if (saisie != null && saisie.estNumerique) {
+          valeurs.add(saisie.centiemes!);
+        }
       }
+      return _moyenneDe(valeurs);
     }
-    return _moyenneDe(valeurs);
+    return _moyenneDe([
+      for (final p in calendrier.periodes)
+        if (noteMatiere(eleve, matiereId, Portee.periode(p)) != null)
+          noteMatiere(eleve, matiereId, Portee.periode(p))!,
+    ]);
   }
 
-  // --------------------------------------------------------------- Année
+  /// Résultats de toute la classe sur une étendue (moyenne, rang, mention,
+  /// décision). Les décisions « année » ne s'appliquent qu'à l'année entière.
+  List<ResultatEleve> resultats(Portee portee) {
+    if (portee.estMois) _verifierMois(portee.moisChoisi!);
+    return _construire(
+      moyenne: (e) => moyenne(e, portee),
+      incomplet: (e) => incomplet(e, portee),
+      annuel: portee.annuelle,
+    );
+  }
 
-  /// Moyenne annuelle : moyenne des moyennes trimestrielles disponibles.
-  int? moyenneAnnuelle(DonneesEleve eleve) {
-    final valeurs = <int>[];
-    for (final trimestre in trimestres) {
-      final v = moyenneTrimestre(eleve, trimestre);
-      if (v != null) valeurs.add(v);
+  /// Classement des élèves dans une matière sur une étendue.
+  List<ResultatMatiere> classementMatiere(int matiereId, Portee portee) {
+    if (!matieres.any((m) => m.id == matiereId)) {
+      throw ArgumentError.value(matiereId, 'matiereId', 'matière inconnue');
     }
-    return _moyenneDe(valeurs);
+    final notes = <int, int?>{
+      for (final e in eleves) e.inscriptionId: noteMatiere(e, matiereId, portee),
+    };
+    final rangs = calculerRangs(notes);
+    return [
+      for (final e in eleves)
+        ResultatMatiere(
+          inscriptionId: e.inscriptionId,
+          note: notes[e.inscriptionId],
+          rang: rangs[e.inscriptionId],
+        ),
+    ];
   }
 
-  bool anneeIncomplete(DonneesEleve eleve) {
-    return trimestres.any(
-      (t) => moyenneTrimestre(eleve, t) == null || trimestreIncomplet(eleve, t),
-    );
+  // ---------------------------- Raccourcis (trimestres, numérotés à partir de 1)
+
+  PeriodeScolaire _periodeNumero(int numero) {
+    if (numero < 1 || numero > calendrier.periodes.length) {
+      throw ArgumentError.value(
+        numero,
+        'trimestre',
+        'doit être entre 1 et ${calendrier.periodes.length}',
+      );
+    }
+    return calendrier.periodes[numero - 1];
   }
 
-  // ------------------------------------------------- Résultats de la classe
+  /// Moyenne de la période numéro [trimestre] (1 = première période).
+  int? moyenneTrimestre(DonneesEleve eleve, int trimestre) =>
+      moyenne(eleve, Portee.periode(_periodeNumero(trimestre)));
 
-  List<ResultatEleve> resultatsMois(int mois) {
-    _verifierMois(mois);
-    return _construire(
-      moyenne: (e) => moyenneMois(e, mois),
-      incomplet: (e) => moisIncomplet(e, mois),
-      annuel: false,
-    );
-  }
+  bool trimestreIncomplet(DonneesEleve eleve, int trimestre) =>
+      incomplet(eleve, Portee.periode(_periodeNumero(trimestre)));
 
-  List<ResultatEleve> resultatsTrimestre(int trimestre) {
-    _moisDuTrimestre(trimestre); // valide le numéro
-    return _construire(
-      moyenne: (e) => moyenneTrimestre(e, trimestre),
-      incomplet: (e) => trimestreIncomplet(e, trimestre),
-      annuel: false,
-    );
-  }
+  int? noteMatiereTrimestre(DonneesEleve eleve, int matiereId, int trimestre) =>
+      noteMatiere(eleve, matiereId, Portee.periode(_periodeNumero(trimestre)));
 
-  List<ResultatEleve> resultatsAnnee() {
-    return _construire(
-      moyenne: moyenneAnnuelle,
-      incomplet: anneeIncomplete,
-      annuel: true,
-    );
-  }
+  int? moyenneAnnuelle(DonneesEleve eleve) => moyenne(eleve, const Portee.annee());
+
+  bool anneeIncomplete(DonneesEleve eleve) =>
+      incomplet(eleve, const Portee.annee());
+
+  List<ResultatEleve> resultatsMois(int mois) => resultats(Portee.mois(mois));
+
+  List<ResultatEleve> resultatsTrimestre(int trimestre) =>
+      resultats(Portee.periode(_periodeNumero(trimestre)));
+
+  List<ResultatEleve> resultatsAnnee() => resultats(const Portee.annee());
 
   List<ResultatEleve> _construire({
     required int? Function(DonneesEleve) moyenne,
@@ -242,14 +314,6 @@ class MoteurResultats {
     if (valeurs.isEmpty) return null;
     final somme = valeurs.fold(0, (a, b) => a + b);
     return divisionArrondie(somme, valeurs.length);
-  }
-
-  static List<int> _moisDuTrimestre(int trimestre) {
-    final mois = moisDuTrimestre[trimestre];
-    if (mois == null) {
-      throw ArgumentError.value(trimestre, 'trimestre', 'doit être 1, 2 ou 3');
-    }
-    return mois;
   }
 
   static void _verifierMois(int mois) {

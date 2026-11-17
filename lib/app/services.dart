@@ -1,4 +1,5 @@
 import '../data/depots/annee_depot.dart';
+import '../data/depots/calendrier_depot.dart';
 import '../data/depots/classe_depot.dart';
 import '../data/depots/config_resultats_depot.dart';
 import '../data/depots/eleve_depot.dart';
@@ -13,6 +14,7 @@ class Services {
       : etablissements = EtablissementDepot(gdb.db),
         annees = AnneeDepot(gdb.db),
         configs = ConfigResultatsDepot(gdb.db),
+        calendriers = CalendrierDepot(gdb.db),
         classes = ClasseDepot(gdb.db),
         matieres = MatiereDepot(gdb.db),
         eleves = EleveDepot(gdb.db),
@@ -22,6 +24,7 @@ class Services {
   final EtablissementDepot etablissements;
   final AnneeDepot annees;
   final ConfigResultatsDepot configs;
+  final CalendrierDepot calendriers;
   final ClasseDepot classes;
   final MatiereDepot matieres;
   final EleveDepot eleves;

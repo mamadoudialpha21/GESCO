@@ -49,7 +49,7 @@ class AnneeDepot {
   ///
   /// - La toute première année créée devient automatiquement l'année active.
   /// - Si [copierDepuisAnneeId] est fourni, les classes, les matières, les
-  ///   coefficients et les seuils de cette année sont recopiés (jamais les
+  ///   coefficients, les seuils et le calendrier de cette année sont recopiés (jamais les
   ///   élèves ni les notes).
   /// - Si [activer] est vrai, la nouvelle année devient l'année active.
   ///
@@ -116,6 +116,17 @@ class AnneeDepot {
       });
       if (copierDepuisAnneeId != null) {
         await _copierClasses(txn, copierDepuisAnneeId, nouvelle);
+        final calendrier = await txn.query(
+          'config_calendrier',
+          where: 'annee_id = ?',
+          whereArgs: [copierDepuisAnneeId],
+        );
+        if (calendrier.isNotEmpty) {
+          await txn.insert('config_calendrier', {
+            'annee_id': nouvelle,
+            'json': calendrier.first['json'],
+          });
+        }
       }
       if (premiere || activer) {
         await _activer(txn, nouvelle);
