@@ -109,21 +109,50 @@ Règles détaillées : `docs/REGLES_INSCRIPTIONS.md`.
 | G25 | **Réinscrire…** de nouveau dans `2027-2028` quand tous le sont | Message « Aucun élève à réinscrire… » |
 | G26 | Sans année scolaire, ou dans une année sans classe : menu Inscriptions | Message explicatif et bouton **Ouvrir les paramètres** |
 | G27 | Tableau de bord | La tuile « Élèves inscrits » est exacte ; l'étape « Inscrire les élèves » est cochée ; avant la première inscription, un bouton « Inscrire les élèves » y mène |
-| G28 | Redimensionner la fenêtre en dessous de 760 px | Le menu du bas contient 3 entrées ; le formulaire reste utilisable (sous environ 570 px de large, ses champs passent sur une seule colonne) |
+| G28 | Redimensionner la fenêtre en dessous de 760 px | Le menu du bas contient 4 entrées (Accueil, Inscriptions, Notes, Paramètres) ; le formulaire reste utilisable (sous environ 570 px de large, ses champs passent sur une seule colonne) |
 
-**Non vérifiable à la main pour l'instant** (il faut la saisie des notes, étape 5) :
-changement de classe refusé quand l'élève a des notes, et suppression d'un élève
-qui a des notes (double confirmation). Ces deux cas sont couverts par les tests
-automatiques.
+Le changement de classe refusé quand l'élève a des notes, et la suppression d'un
+élève qui a des notes (double confirmation), se vérifient après la section I
+(lignes I16 et I17).
 
 ## H. Persistance et fonctionnement hors ligne
 
 | # | Action | Résultat attendu |
 |---|---|---|
-| H1 | **Fermer complètement GESCO**, puis le relancer | Établissement, logo, années, classes, matières, seuils, **élèves et leurs photos** sont tous conservés |
+| H1 | **Fermer complètement GESCO**, puis le relancer | Établissement, logo, années, classes, matières, seuils, **élèves et leurs photos** et **notes** sont tous conservés |
 | H2 | Couper le Wi-Fi / débrancher le câble réseau, refaire quelques actions (B, C, D, G) | Tout fonctionne, aucune erreur réseau |
 | H3 | Redimensionner la fenêtre en dessous de 760 px de large | Le menu passe en bas de l'écran |
 | H4 | Ouvrir le dossier indiqué sur le Tableau de bord | Le fichier `gesco.db` existe |
+
+## I. Saisie des notes
+
+À faire avec les classes, matières et élèves des sections précédentes. Prévoir au
+moins une classe avec 3 élèves et 2 matières (coefficients différents).
+
+| # | Action | Résultat attendu |
+|---|---|---|
+| I1 | Menu **Notes** | Choix de la classe, puces Octobre → Juin, Trimestre 1/2/3 et Année ; tableau avec un élève par ligne et une matière par colonne (coefficient sous le nom) |
+| I2 | Cliquer sur une case, taper `14,5`, **Entrée** | La note s'affiche `14,50` ; la case de l'élève suivant s'ouvre ; « Enregistré automatiquement » apparaît en haut |
+| I3 | Saisir une note pour chaque matière d'un même élève | Sa **moyenne** apparaît tout de suite, en vert / orange / rouge ; elle est pondérée par les coefficients (ex. 12,5 × coef 4 et 9 × coef 3 → 11,00) |
+| I4 | Saisir des notes pour plusieurs élèves | Les **rangs** (1er, 2e…) se mettent à jour ; deux moyennes égales donnent « ex æquo » ; la ligne grisée du bas donne la moyenne de la classe par matière |
+| I5 | Taper `A` dans une case | Elle affiche `ABS`, en gris ; la moyenne de l'élève ne baisse pas ; une étoile orange `*` apparaît à côté de sa moyenne |
+| I6 | Taper `D` dans une case | Elle affiche `DISP` |
+| I7 | Taper `0` | La case affiche `0,00` et **compte** dans la moyenne |
+| I8 | Vider une case déjà remplie, puis Entrée | La case redevient vide (pas de 0) et la moyenne est recalculée |
+| I9 | Taper `25`, puis Entrée | Case encadrée en rouge, message « dépasse 20 », rien n'est enregistré ; corriger en `15` puis Entrée enregistre |
+| I10 | Taper `abc`, puis Entrée | Message « n'est pas une note valide… » |
+| I11 | Taper `14` et attendre une seconde **sans rien valider** | « Enregistré automatiquement » apparaît quand même |
+| I12 | Taper une note puis cliquer directement sur une autre case | La première note est enregistrée, la seconde case s'ouvre |
+| I13 | **Tab**, **Maj+Tab**, flèches haut / bas, **Échap** | Déplacements décrits dans `REGLES_NOTES.md` ; Échap abandonne la frappe non enregistrée |
+| I14 | Changer de mois (Novembre) puis revenir à Octobre | Les notes d'octobre sont intactes ; novembre est vide ; l'avancement « x / y cases » est juste |
+| I15 | **Fermer complètement GESCO**, relancer, rouvrir Notes | Toutes les notes sont là, y compris la dernière tapée juste avant la fermeture |
+| I16 | Inscriptions → modifier un élève qui a des notes : changer sa classe | Refusé avec un message clair ; la classe reste inchangée |
+| I17 | Inscriptions → supprimer un élève qui a des notes | Double confirmation ; après validation, il disparaît avec ses notes |
+| I18 | Puces **Trimestre 1** puis **Année** | Moyennes calculées, rang, mention, décision ; aucune case modifiable ; trimestre 1 = moyenne des mois d'octobre à décembre saisis |
+| I19 | Paramètres → modifier le coefficient d'une matière, revenir à Notes | Les notes sont inchangées ; les moyennes sont recalculées avec le nouveau coefficient |
+| I20 | Classe sans matière / sans élève : menu Notes | Message explicatif et bouton vers Paramètres / Inscriptions |
+| I21 | Tableau de bord | Tuile « Notes saisies » exacte ; étape « Saisir les notes » cochée ; bouton « Saisir les notes » dans le bandeau |
+| I22 | Fenêtre étroite (moins de 760 px) | Le tableau défile horizontalement (glisser avec la souris ou le doigt, ou Maj + molette) ; la colonne des noms reste visible |
 
 ## Si quelque chose ne va pas
 

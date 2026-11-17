@@ -809,34 +809,39 @@ class _GrilleNotesState extends State<GrilleNotes> {
       ),
     );
     if (!col.estMoyenne) return texte;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          key: Key('moyenne_$l'),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: fondNiveau(niveau),
-            borderRadius: BorderRadius.circular(8),
+    // FittedBox : si la police est plus large que prévu, le contenu se
+    // réduit au lieu de déborder de la case.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            key: Key('moyenne_$l'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: fondNiveau(niveau),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: texte,
           ),
-          child: texte,
-        ),
-        if (r.incomplet)
-          const Tooltip(
-            message: 'Des notes manquent : moyenne calculée sur les notes saisies.',
-            child: Padding(
-              padding: EdgeInsets.only(left: 3),
-              child: Text(
-                '*',
-                style: TextStyle(
-                  color: CouleursGesco.orange,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
+          if (r.incomplet)
+            const Tooltip(
+              message: 'Des notes manquent : moyenne calculée sur les notes saisies.',
+              child: Padding(
+                padding: EdgeInsets.only(left: 3),
+                child: Text(
+                  '*',
+                  style: TextStyle(
+                    color: CouleursGesco.orange,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
