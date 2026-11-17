@@ -28,6 +28,9 @@ String formaterCentiemes(int? centiemes, {String vide = '—'}) {
   return '$signe$entier,$decimales';
 }
 
+/// Rang en toutes lettres abrégées : 1 -> « 1er », 2 -> « 2e ».
+String formaterRang(int rang) => rang == 1 ? '1er' : '${rang}e';
+
 /// Affiche un coefficient sans zéros inutiles : 400 -> « 4 », 250 -> « 2,5 »,
 /// 125 -> « 1,25 », 5 -> « 0,05 ».
 String formaterCoefficient(int centiemes) {

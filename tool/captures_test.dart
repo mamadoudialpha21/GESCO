@@ -17,6 +17,7 @@ import 'package:gesco/app/etat_app.dart';
 import 'package:gesco/app/services.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/data/modeles_donnees.dart';
+import 'package:gesco/domain/modeles.dart';
 import 'package:gesco/main.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -89,12 +90,15 @@ Future<void> semer(Services s) async {
   var numero = 0;
   for (final entree in eleves.entries) {
     final classe = await s.classes.creer(anneeId: annee.id, nom: entree.key);
+    final matieresClasse = <MatiereClasse>[];
     for (final m in matieres) {
-      await s.matieres.ajouter(classeId: classe.id, nom: m.$1, coefficient: m.$2);
+      matieresClasse.add(
+        await s.matieres.ajouter(classeId: classe.id, nom: m.$1, coefficient: m.$2),
+      );
     }
     for (final e in entree.value) {
       numero++;
-      await s.eleves.inscrire(
+      final inscription = await s.eleves.inscrire(
         Eleve(
           matricule: '2026-${numero.toString().padLeft(4, '0')}',
           nom: e.$1,
@@ -110,6 +114,22 @@ Future<void> semer(Services s) async {
         anneeId: annee.id,
         classeId: classe.id,
       );
+      // Notes d'octobre et de novembre (quelques cases vides et une absence).
+      for (final mois in [10, 11]) {
+        for (var i = 0; i < matieresClasse.length; i++) {
+          final graine = numero * 7 + i * 13 + mois * 5;
+          if (graine % 11 == 0) continue;
+          final saisie = graine % 23 == 0
+              ? const Saisie.absent()
+              : Saisie.valeur((graine % 15 + 5) * 100 + (numero * 25) % 100);
+          await s.notes.enregistrer(
+            inscriptionId: inscription,
+            matiereId: matieresClasse[i].id,
+            mois: mois,
+            saisie: saisie,
+          );
+        }
+      }
     }
   }
 }
@@ -195,11 +215,24 @@ void main() {
     await etape('07_parametres_classes', () async => toucher(find.text('Classes et matières')));
     await etape('08_parametres_mentions', () async => toucher(find.text('Mentions et décisions')));
 
+    await toucher(find.byKey(const Key('menu_notes')));
+    await etape('11_notes_octobre', () async {});
+    await etape('12_notes_saisie', () async {
+      await toucher(find.byKey(const Key('case_1_0')));
+    });
+    await etape('13_notes_novembre', () async =>
+        toucher(find.byKey(const Key('periode_m11'))));
+    await etape('14_notes_trimestre', () async =>
+        toucher(find.byKey(const Key('periode_t1'))));
+    await etape('15_notes_annee', () async =>
+        toucher(find.byKey(const Key('periode_annee'))));
+
     // Petit écran (téléphone).
     await taille(420, 860);
     await toucher(find.text('Accueil').first);
     await etape('09_mobile_tableau_de_bord', () async {});
     await etape('10_mobile_inscriptions', () async => toucher(find.text('Inscriptions').first));
+    await etape('16_mobile_notes', () async => toucher(find.text('Notes').first));
 
     // ignore: avoid_print
     print('CAPTURES TERMINÉES : $echecs échec(s)');

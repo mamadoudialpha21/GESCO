@@ -328,6 +328,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
+          width: double.infinity,
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
           child: Wrap(

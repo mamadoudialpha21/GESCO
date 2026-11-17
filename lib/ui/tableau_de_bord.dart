@@ -7,10 +7,17 @@ import 'commun/composants.dart';
 import 'theme.dart';
 
 class _Resume {
-  const _Resume({required this.classes, required this.eleves});
+  const _Resume({
+    required this.classes,
+    required this.eleves,
+    required this.nbNotes,
+  });
 
   final List<ClasseResume> classes;
   final List<EleveInscrit> eleves;
+
+  /// Cases de notes renseignées (notes, absences et dispenses) de l'année.
+  final int nbNotes;
 
   int get nbClasses => classes.length;
   int get nbMatieres => classes.fold(0, (somme, c) => somme + c.nbMatieres);
@@ -35,11 +42,13 @@ class PageTableauDeBord extends StatelessWidget {
     required this.etat,
     required this.allerAuxParametres,
     required this.allerAuxInscriptions,
+    required this.allerAuxNotes,
   });
 
   final EtatApp etat;
   final VoidCallback allerAuxParametres;
   final VoidCallback allerAuxInscriptions;
+  final VoidCallback allerAuxNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -47,10 +56,13 @@ class PageTableauDeBord extends StatelessWidget {
       cle: (etat.anneeId, etat.version),
       charger: () async {
         final anneeId = etat.anneeId;
-        if (anneeId == null) return const _Resume(classes: [], eleves: []);
+        if (anneeId == null) {
+          return const _Resume(classes: [], eleves: [], nbNotes: 0);
+        }
         return _Resume(
           classes: await etat.services.classes.lister(anneeId),
           eleves: await etat.services.eleves.lister(anneeId),
+          nbNotes: await etat.services.notes.compterAnnee(anneeId),
         );
       },
       builder: (context, resume) => _contenu(context, resume),
@@ -75,6 +87,7 @@ class PageTableauDeBord extends StatelessWidget {
     // Les étapes de paramétrage doivent être faites avant d'inscrire.
     final parametrageFait = etapes.every((e) => e.faite);
     etapes.add(_Etape('Inscrire les élèves', resume.nbEleves > 0));
+    etapes.add(_Etape('Saisir les notes', resume.nbNotes > 0));
     final tout = etapes.every((e) => e.faite);
 
     return LayoutBuilder(
@@ -90,8 +103,10 @@ class PageTableauDeBord extends StatelessWidget {
           etapes: etapes,
           tout: tout,
           parametrageFait: parametrageFait,
+          nbEleves: resume.nbEleves,
           allerAuxParametres: allerAuxParametres,
           allerAuxInscriptions: allerAuxInscriptions,
+          allerAuxNotes: allerAuxNotes,
         );
         final donnees = _CarteDonnees(chemin: etat.chemin);
 
@@ -105,8 +120,10 @@ class PageTableauDeBord extends StatelessWidget {
                 _Bandeau(
                   etat: etat,
                   parametrageFait: parametrageFait,
+                  avecEleves: resume.nbEleves > 0,
                   allerAuxParametres: allerAuxParametres,
                   allerAuxInscriptions: allerAuxInscriptions,
+                  allerAuxNotes: allerAuxNotes,
                 ),
                 const SizedBox(height: 16),
                 if (etat.problemesIntegrite.isNotEmpty) ...[
@@ -138,6 +155,14 @@ class PageTableauDeBord extends StatelessWidget {
                           ? 'Aucun élève inscrit'
                           : '${resume.nbGarcons} garçon${resume.nbGarcons > 1 ? 's' : ''}'
                               '  ·  ${resume.nbFilles} fille${resume.nbFilles > 1 ? 's' : ''}',
+                    ),
+                    _Tuile(
+                      libelle: 'Notes saisies',
+                      valeur: '${resume.nbNotes}',
+                      icone: Icons.grading_outlined,
+                      detail: resume.nbNotes == 0
+                          ? 'Aucune note saisie'
+                          : 'cette année scolaire',
                     ),
                   ],
                 ),
@@ -188,14 +213,18 @@ class _Bandeau extends StatelessWidget {
   const _Bandeau({
     required this.etat,
     required this.parametrageFait,
+    required this.avecEleves,
     required this.allerAuxParametres,
     required this.allerAuxInscriptions,
+    required this.allerAuxNotes,
   });
 
   final EtatApp etat;
   final bool parametrageFait;
+  final bool avecEleves;
   final VoidCallback allerAuxParametres;
   final VoidCallback allerAuxInscriptions;
+  final VoidCallback allerAuxNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +288,14 @@ class _Bandeau extends StatelessWidget {
       spacing: 10,
       runSpacing: 10,
       children: [
+        if (parametrageFait && avecEleves)
+          FilledButton.icon(
+            key: const Key('action_notes'),
+            style: styleBouton,
+            onPressed: allerAuxNotes,
+            icon: const Icon(Icons.grading),
+            label: const Text('Saisir les notes'),
+          ),
         if (parametrageFait)
           FilledButton.icon(
             key: const Key('action_inscrire'),
@@ -289,7 +326,7 @@ class _Bandeau extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, c) {
-          if (c.maxWidth < 640) {
+          if (c.maxWidth < 900) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [identite, const SizedBox(height: 16), actions],
@@ -560,15 +597,19 @@ class _CarteDemarrage extends StatelessWidget {
     required this.etapes,
     required this.tout,
     required this.parametrageFait,
+    required this.nbEleves,
     required this.allerAuxParametres,
     required this.allerAuxInscriptions,
+    required this.allerAuxNotes,
   });
 
   final List<_Etape> etapes;
   final bool tout;
   final bool parametrageFait;
+  final int nbEleves;
   final VoidCallback allerAuxParametres;
   final VoidCallback allerAuxInscriptions;
+  final VoidCallback allerAuxNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -616,7 +657,13 @@ class _CarteDemarrage extends StatelessWidget {
             ),
           if (!tout) ...[
             const SizedBox(height: 12),
-            if (parametrageFait)
+            if (parametrageFait && nbEleves > 0)
+              FilledButton.icon(
+                onPressed: allerAuxNotes,
+                icon: const Icon(Icons.grading),
+                label: const Text('Saisir les notes'),
+              )
+            else if (parametrageFait)
               FilledButton.icon(
                 onPressed: allerAuxInscriptions,
                 icon: const Icon(Icons.person_add_alt_1),

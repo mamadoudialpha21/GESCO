@@ -63,7 +63,6 @@ ThemeData construireTheme() {
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 44),
         shape: forme,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -71,7 +70,6 @@ ThemeData construireTheme() {
         minimumSize: const Size(0, 44),
         shape: forme,
         side: const BorderSide(color: CouleursGesco.bordureChamp),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
     snackBarTheme: SnackBarThemeData(

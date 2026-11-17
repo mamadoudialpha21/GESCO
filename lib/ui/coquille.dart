@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app/etat_app.dart';
 import 'commun/composants.dart';
 import 'inscriptions/page_inscriptions.dart';
+import 'notes/page_notes.dart';
 import 'parametres/page_parametres.dart';
 import 'tableau_de_bord.dart';
 import 'theme.dart';
@@ -46,6 +47,13 @@ const List<_Destination> _destinations = [
     iconeActive: Icons.people,
   ),
   _Destination(
+    cle: 'notes',
+    titre: 'Notes',
+    libelleCourt: 'Notes',
+    icone: Icons.grading_outlined,
+    iconeActive: Icons.grading,
+  ),
+  _Destination(
     cle: 'parametres',
     titre: 'Paramètres',
     libelleCourt: 'Paramètres',
@@ -68,7 +76,8 @@ class Coquille extends StatefulWidget {
 class _CoquilleState extends State<Coquille> {
   static const int _pageTableauDeBord = 0;
   static const int _pageInscriptions = 1;
-  static const int _pageParametres = 2;
+  static const int _pageNotes = 2;
+  static const int _pageParametres = 3;
 
   int _index = _pageTableauDeBord;
 
@@ -84,10 +93,16 @@ class _CoquilleState extends State<Coquille> {
             etat: widget.etat,
             allerAuxParametres: () => _aller(_pageParametres),
             allerAuxInscriptions: () => _aller(_pageInscriptions),
+            allerAuxNotes: () => _aller(_pageNotes),
           ),
           PageInscriptions(
             etat: widget.etat,
             allerAuxParametres: () => _aller(_pageParametres),
+          ),
+          PageNotes(
+            etat: widget.etat,
+            allerAuxParametres: () => _aller(_pageParametres),
+            allerAuxInscriptions: () => _aller(_pageInscriptions),
           ),
           PageParametres(etat: widget.etat),
         ];
@@ -409,11 +424,10 @@ class _SelecteurAnnee extends StatelessWidget {
               value: etat.anneeId,
               isDense: true,
               borderRadius: BorderRadius.circular(12),
-              style: const TextStyle(
-                color: CouleursGesco.texte,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: CouleursGesco.texte,
+                    fontWeight: FontWeight.w600,
+                  ),
               selectedItemBuilder: (context) => [
                 for (final a in etat.annees)
                   Center(
