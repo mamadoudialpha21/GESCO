@@ -28,8 +28,8 @@ enum _Deplacement { bas, haut, droite, gauche }
 
 enum _Statut { repos, enCours, enregistre, erreur }
 
-const double _largeurNom = 184;
-const double _largeurMatiere = 84;
+const double _largeurNom = 168;
+const double _largeurMatiere = 76;
 const double _hauteurLigne = 54;
 const double _hauteurEntete = 58;
 
@@ -75,15 +75,24 @@ class _Colonne {
       );
 }
 
+int _plusLongMot(String titre) => titre
+    .split(RegExp(r'[\s\-]+'))
+    .fold<int>(0, (m, mot) => mot.length > m ? mot.length : m);
+
 /// Taille de police d'un titre de colonne : un mot très long (« Mathématiques »)
 /// est un peu réduit pour tenir sur une ligne au lieu d'être coupé en deux.
 double taillePoliceTitre(String titre) {
-  final plusLong = titre
-      .split(RegExp(r'[\s\-]+'))
-      .fold<int>(0, (m, mot) => mot.length > m ? mot.length : m);
-  if (plusLong >= 13) return 10.5;
-  if (plusLong >= 11) return 11.5;
+  final n = _plusLongMot(titre);
+  if (n >= 13) return 11.5;
+  if (n >= 11) return 12;
   return 12.5;
+}
+
+/// Largeur d'une colonne de matière : celle par défaut, élargie si le nom
+/// contient un mot long.
+double largeurColonneMatiere(String nom) {
+  final voulue = _plusLongMot(nom) * 7.0 + 12;
+  return voulue > _largeurMatiere ? (voulue > 112 ? 112 : voulue) : _largeurMatiere;
 }
 
 /// Tableau élèves × matières pour une période.
@@ -416,6 +425,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
         for (final m in widget.matieres) {
           colonnes.add(_Colonne(
             titre: m.nom,
+            largeur: largeurColonneMatiere(m.nom),
             sousTitre: 'coef ${formaterCoefficient(m.coefficient)}',
             matiereId: m.id,
             valeur: (d, r) => d.saisie(m.id, p.numero)?.centiemes,
@@ -425,6 +435,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
         for (final m in widget.matieres) {
           colonnes.add(_Colonne(
             titre: m.nom,
+            largeur: largeurColonneMatiere(m.nom),
             sousTitre: 'coef ${formaterCoefficient(m.coefficient)}',
             valeur: (d, r) => moteur.noteMatiereTrimestre(d, m.id, p.numero),
           ));
@@ -442,14 +453,14 @@ class _GrilleNotesState extends State<GrilleNotes> {
     colonnes.add(_Colonne(
       titre: p.genre == GenrePeriode.annee ? 'Moy. annuelle' : 'Moyenne',
       sousTitre: p.genre == GenrePeriode.annee ? null : 'sur 20',
-      largeur: 92,
+      largeur: 88,
       valeur: (d, r) => r.moyenne,
       estMoyenne: true,
     ));
-    colonnes.add(const _Colonne(titre: 'Rang', largeur: 68, estRang: true));
+    colonnes.add(const _Colonne(titre: 'Rang', largeur: 64, estRang: true));
     colonnes.add(_Colonne(
       titre: 'Mention',
-      largeur: 120,
+      largeur: 108,
       texte: (d, r) => r.mention,
     ));
     if (p.genre != GenrePeriode.mois) {

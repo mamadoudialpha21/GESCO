@@ -181,8 +181,16 @@ void main() {
       expect(taillePoliceTitre('Maths'), 12.5);
       expect(taillePoliceTitre('Physique-Chimie'), 12.5);
       expect(taillePoliceTitre('Histoire-Géographie'), 12.5);
-      expect(taillePoliceTitre('Informatique'), 11.5);
-      expect(taillePoliceTitre('Mathématiques'), 10.5);
+      expect(taillePoliceTitre('Informatique'), 12);
+      expect(taillePoliceTitre('Mathématiques'), 11.5);
+    });
+
+    test('les colonnes de matière s\'élargissent pour les mots longs', () {
+      final courte = largeurColonneMatiere('SVT');
+      final longue = largeurColonneMatiere('Mathématiques');
+      expect(courte, largeurColonneMatiere('Maths'));
+      expect(longue, greaterThan(courte));
+      expect(longue, lessThanOrEqualTo(112));
     });
 
     testWidgets('moyenne et rang calculés tout de suite', (tester) async {
