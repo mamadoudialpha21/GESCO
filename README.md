@@ -11,9 +11,9 @@ Priorité actuelle : version **Windows** complète avec installateur `.exe`.
 |---|---|---|
 | 1 | Socle : projet, schéma SQLite, migrations, contrôle d'intégrité | Testé automatiquement (tests réussis sur GitHub) |
 | 2 | Moteur de calcul : moyennes, rangs, mentions, décisions, statistiques | Testé automatiquement (tests réussis sur GitHub) |
-| 3 | Paramètres : établissement et logo, années, classes, matières, coefficients, seuils | Testé automatiquement (254 tests réussis) ; **interface non vérifiée à la main** |
-| 4 | Inscriptions et fiches élèves : ajout, modification, fiche, suppression, recherche, réinscription, photo | Testé automatiquement (254 tests réussis) ; **interface non vérifiée à la main** |
-| 5 | Saisie des notes avec enregistrement automatique | À faire |
+| 3 | Paramètres : établissement et logo, années, classes, matières, coefficients, seuils | Testé automatiquement (317 tests réussis) ; **interface non vérifiée à la main** |
+| 4 | Inscriptions et fiches élèves : ajout, modification, fiche, suppression, recherche, réinscription, photo | Testé automatiquement (317 tests réussis) ; **interface non vérifiée à la main** |
+| 5 | Saisie des notes par classe et par mois (enregistrement automatique, absent / dispensé, case vide ≠ 0), moyennes, rangs, mentions et décisions en lecture par trimestre et par année | Testé automatiquement (317 tests réussis) ; aspect relu sur des captures rendues par GitHub ; **usage réel au clavier et à la souris non vérifié** |
 | 6 | Classements, exports PDF / Excel, impression | À faire |
 | 7 | Bulletins trimestriels et annuel (PDF A4) | À faire |
 | 8 | Notes finales | À faire |
@@ -28,10 +28,11 @@ Priorité actuelle : version **Windows** complète avec installateur `.exe`.
 | Contrôle | Résultat |
 |---|---|
 | Analyse statique du code | 0 erreur, 0 avertissement (quelques remarques d'information, sans effet) |
-| Tests automatiques (moteur de calcul, base de données, dépôts, formulaires d'inscription) | **254 sur 254 réussis** |
+| Tests automatiques (moteur de calcul, base de données, dépôts, formulaires d'inscription, saisie des notes) | **317 sur 317 réussis** |
 | Compilation Windows (`flutter build windows --release`) | Réussie |
 | Démarrage de `gesco.exe` sur Windows | L'application s'ouvre, la fenêtre répond, la base est créée au bon endroit avec les 9 tables, le trigger de verrouillage de classe et un contrôle d'intégrité correct |
-| Installateur `GESCO-Setup-0.3.0.exe` (Inno Setup) | Produit (environ 11 Mo) |
+| Installateur `GESCO-Setup-0.4.0.exe` (Inno Setup) | Produit par le même passage |
+| Captures d'écran des écrans (rendues par un test, branche `captures`) | 16 captures produites, 0 échec ; relues pour contrôler l'aspect (menu, tableau de bord, élèves, notes, petit écran) |
 
 **Ce qui n'est pas encore vérifié** : l'installation elle-même, l'aspect et le
 comportement de l'interface au clavier et à la souris, l'impression, les
@@ -70,7 +71,7 @@ l'application), corrigé depuis.
 3. Le premier job (`Analyse et tests`) lance les tests. L'analyse statique y est
    informative : un avertissement de style n'arrête rien, c'est l'échec d'un
    test ou de la compilation qui est bloquant. Le second job (`Compilation et
-   installateur .exe`) compile l'application et produit `GESCO-Setup-0.3.0.exe`,
+   installateur .exe`) compile l'application et produit `GESCO-Setup-0.4.0.exe`,
    téléchargeable en bas de la page de l'exécution (*Artifacts*).
 4. Si une étape devient rouge, copiez-moi son message d'erreur : je corrige.
 
@@ -110,16 +111,19 @@ sauvegarde complète.
 ```
 lib/domain/   Moteur de calcul (Dart pur) : arrondi, périodes, modèles,
               configuration des seuils, moteur de résultats, statistiques,
-              dates, recherche sans accents, matricules
+              dates, recherche sans accents, matricules, lecture d'une note saisie
 lib/data/     Schéma SQLite, ouverture de la base, migrations, images,
               validation des fiches, dépôts (établissement, années, classes,
-              matières, seuils, élèves et inscriptions)
+              matières, seuils, élèves et inscriptions, notes)
 lib/app/      État partagé de l'application, accès aux dépôts
 lib/ui/       Écrans : coquille de navigation, tableau de bord, paramètres,
-              inscriptions (liste, formulaire, fiche, réinscription)
-test/         Tests du moteur, de la base, des dépôts, des composants et des
-              formulaires d'inscription
-docs/         Règles de calcul (à valider), règles des inscriptions, liste de vérification manuelle
+              inscriptions (liste, formulaire, fiche, réinscription),
+              notes (choix de la classe et de la période, grille de saisie)
+test/         Tests du moteur, de la base, des dépôts, des composants, des
+              formulaires d'inscription et de la grille de notes
+tool/         Captures d'écran automatiques (relecture de l'interface)
+docs/         Règles de calcul (à valider), règles des inscriptions, règles de
+              la saisie des notes, liste de vérification manuelle
 installer/    Script Inno Setup de l'installateur Windows
 scripts/      Script de construction pour votre PC
 .github/      Workflow de vérification et de compilation automatiques
@@ -138,5 +142,6 @@ envoyer sur GitHub.
   que Riverpod : une dépendance de moins à résoudre.
 - **Pas de mode WAL** : le journal SQLite par défaut garde un seul fichier, ce
   qui simplifie la sauvegarde sur clé USB.
-- Interface de l'étape 3 pensée pour l'ordinateur ; l'adaptation tablettes et
-  téléphones est prévue à l'étape 11.
+- Interface pensée d'abord pour l'ordinateur (menu latéral, grille de notes
+  défilante). Sous 760 px de large le menu devient une barre en bas ; la mise
+  au point complète pour tablettes et téléphones est prévue à l'étape 11.

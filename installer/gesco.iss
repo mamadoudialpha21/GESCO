@@ -2,7 +2,7 @@
 ; Compilation : iscc /DBuildDir="<dossier Release de Flutter>" installer\gesco.iss
 
 #define MyAppName "GESCO"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "0.4.0"
 #define MyAppPublisher "GESCO"
 #define MyAppExeName "gesco.exe"
 
