@@ -28,8 +28,8 @@ enum _Deplacement { bas, haut, droite, gauche }
 
 enum _Statut { repos, enCours, enregistre, erreur }
 
-const double _largeurNom = 200;
-const double _largeurMatiere = 78;
+const double _largeurNom = 184;
+const double _largeurMatiere = 84;
 const double _hauteurLigne = 54;
 const double _hauteurEntete = 58;
 
@@ -60,6 +60,30 @@ class _Colonne {
   final int? matiereId;
   final bool estMoyenne;
   final bool estRang;
+
+  /// Même colonne, élargie : sert à remplir la largeur disponible quand le
+  /// tableau est plus étroit que l'écran.
+  _Colonne etirer(double facteur) => _Colonne(
+        titre: titre,
+        sousTitre: sousTitre,
+        largeur: largeur * facteur,
+        valeur: valeur,
+        texte: texte,
+        matiereId: matiereId,
+        estMoyenne: estMoyenne,
+        estRang: estRang,
+      );
+}
+
+/// Taille de police d'un titre de colonne : un mot très long (« Mathématiques »)
+/// est un peu réduit pour tenir sur une ligne au lieu d'être coupé en deux.
+double taillePoliceTitre(String titre) {
+  final plusLong = titre
+      .split(RegExp(r'[\s\-]+'))
+      .fold<int>(0, (m, mot) => mot.length > m ? mot.length : m);
+  if (plusLong >= 13) return 10.5;
+  if (plusLong >= 11) return 11.5;
+  return 12.5;
 }
 
 /// Tableau élèves × matières pour une période.
@@ -418,20 +442,20 @@ class _GrilleNotesState extends State<GrilleNotes> {
     colonnes.add(_Colonne(
       titre: p.genre == GenrePeriode.annee ? 'Moy. annuelle' : 'Moyenne',
       sousTitre: p.genre == GenrePeriode.annee ? null : 'sur 20',
-      largeur: 96,
+      largeur: 92,
       valeur: (d, r) => r.moyenne,
       estMoyenne: true,
     ));
-    colonnes.add(const _Colonne(titre: 'Rang', largeur: 76, estRang: true));
+    colonnes.add(const _Colonne(titre: 'Rang', largeur: 68, estRang: true));
     colonnes.add(_Colonne(
       titre: 'Mention',
-      largeur: 112,
+      largeur: 120,
       texte: (d, r) => r.mention,
     ));
     if (p.genre != GenrePeriode.mois) {
       colonnes.add(_Colonne(
         titre: 'Décision',
-        largeur: 190,
+        largeur: 180,
         texte: (d, r) => r.decision,
       ));
     }
@@ -472,8 +496,8 @@ class _GrilleNotesState extends State<GrilleNotes> {
       resultats: resultats,
       config: widget.config,
     );
-    final colonnes = _colonnes(moteur);
-    final largeurTotale = colonnes.fold<double>(0, (s, c) => s + c.largeur);
+    final colonnesBase = _colonnes(moteur);
+    final largeurBase = colonnesBase.fold<double>(0, (s, c) => s + c.largeur);
 
     final comportement = ScrollConfiguration.of(context).copyWith(
       dragDevices: {
@@ -506,7 +530,18 @@ class _GrilleNotesState extends State<GrilleNotes> {
                 borderRadius: BorderRadius.circular(14),
               ),
               clipBehavior: Clip.antiAlias,
-              child: Column(
+              child: LayoutBuilder(
+                builder: (context, contraintes) {
+                  // Si le tableau est plus étroit que l'écran, les colonnes
+                  // s'élargissent pour le remplir ; sinon il défile.
+                  final disponible = contraintes.maxWidth - _largeurNom;
+                  final facteur =
+                      disponible > largeurBase ? disponible / largeurBase : 1.0;
+                  final colonnes = facteur == 1.0
+                      ? colonnesBase
+                      : [for (final c in colonnesBase) c.etirer(facteur)];
+                  final largeurTotale = largeurBase * facteur;
+                  return Column(
                 children: [
                   _entete(colonnes),
                   const Divider(height: 1),
@@ -556,6 +591,8 @@ class _GrilleNotesState extends State<GrilleNotes> {
                     ),
                   ),
                 ],
+              );
+                },
               ),
             ),
           ),
@@ -612,9 +649,9 @@ class _GrilleNotesState extends State<GrilleNotes> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
+                              fontSize: taillePoliceTitre(c.titre),
                               color: CouleursGesco.texte,
                             ),
                           ),

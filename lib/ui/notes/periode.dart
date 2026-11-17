@@ -37,8 +37,8 @@ class Periode {
       };
 
   @override
-  bool operator ==(Object autre) =>
-      autre is Periode && autre.genre == genre && autre.numero == numero;
+  bool operator ==(Object other) =>
+      other is Periode && other.genre == genre && other.numero == numero;
 
   @override
   int get hashCode => Object.hash(genre, numero);

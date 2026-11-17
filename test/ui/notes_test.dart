@@ -87,8 +87,9 @@ Future<Banc> afficher(
   Periode periode = const Periode.mois(10),
   SaisiesClasse? saisies,
   Banc? banc,
+  double largeur = 1400,
 }) async {
-  tester.view.physicalSize = const Size(1400, 900);
+  tester.view.physicalSize = Size(largeur, 900);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -157,6 +158,31 @@ void main() {
       expect(find.descendant(of: caseDe(1, 0), matching: find.byType(Text)),
           findsNothing);
       expect(find.text('0,00'), findsNothing);
+    });
+
+    testWidgets('les colonnes remplissent la largeur quand le tableau est étroit',
+        (tester) async {
+      await afficher(tester);
+      // Deux matières seulement : sans étirement, « Mention » serait vers
+      // x = 570 ; étirée, la colonne s'étend jusqu'au bord droit.
+      expect(find.text('Mention'), findsOneWidget);
+      expect(tester.getCenter(find.text('Mention')).dx, greaterThan(1150));
+    });
+
+    testWidgets('sur un écran étroit le tableau défile au lieu de se comprimer',
+        (tester) async {
+      await afficher(tester, largeur: 500);
+      // Largeur naturelle des colonnes conservée : « Mention » est hors écran.
+      expect(tester.getCenter(find.text('Mention')).dx, greaterThan(500));
+      expect(tester.takeException(), isNull);
+    });
+
+    test('les titres de colonne très longs sont légèrement réduits', () {
+      expect(taillePoliceTitre('Maths'), 12.5);
+      expect(taillePoliceTitre('Physique-Chimie'), 12.5);
+      expect(taillePoliceTitre('Histoire-Géographie'), 12.5);
+      expect(taillePoliceTitre('Informatique'), 11.5);
+      expect(taillePoliceTitre('Mathématiques'), 10.5);
     });
 
     testWidgets('moyenne et rang calculés tout de suite', (tester) async {

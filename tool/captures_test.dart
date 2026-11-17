@@ -195,6 +195,9 @@ void main() {
     }
 
     Future<void> toucher(Finder f) async {
+      // Les puces de période défilent : on amène la cible à l'écran avant.
+      await tester.ensureVisible(f.first);
+      await tester.pump();
       await tester.tap(f.first);
       await attendre();
     }
@@ -216,7 +219,8 @@ void main() {
     await etape('08_parametres_mentions', () async => toucher(find.text('Mentions et décisions')));
 
     await toucher(find.byKey(const Key('menu_notes')));
-    await etape('11_notes_octobre', () async {});
+    await etape('11_notes_octobre', () async =>
+        toucher(find.byKey(const Key('periode_m10'))));
     await etape('12_notes_saisie', () async {
       await toucher(find.byKey(const Key('case_1_0')));
     });
