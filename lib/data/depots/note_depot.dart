@@ -2,6 +2,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../domain/modeles.dart';
 import '../../domain/periodes.dart';
+import '../../domain/permissions.dart';
+import '../controle.dart';
 import '../erreurs.dart';
 import 'aides.dart';
 
@@ -11,11 +13,15 @@ typedef SaisiesClasse = Map<int, Map<int, Map<int, Saisie>>>;
 /// Lecture et enregistrement des notes. Les notes brutes sont conservées
 /// telles que saisies (en centièmes) ; les moyennes ne sont jamais stockées.
 class NoteDepot {
-  NoteDepot(this._db, {DateTime Function()? maintenant})
-      : _maintenant = maintenant ?? DateTime.now;
+  NoteDepot(
+    this._db, {
+    DateTime Function()? maintenant,
+    this.controle = Controle.aucun,
+  }) : _maintenant = maintenant ?? DateTime.now;
 
   final Database _db;
   final DateTime Function() _maintenant;
+  final Controle controle;
 
   /// Toutes les saisies des élèves actuellement inscrits dans [classeId]
   /// (tous mois confondus).
@@ -47,6 +53,8 @@ class NoteDepot {
     required int mois,
     required Saisie? saisie,
   }) async {
+    controle.exiger(Permission.notesSaisir, 'saisir des notes');
+    await _verifierEnseignant(matiereId);
     if (!moisScolaires.contains(mois)) {
       throw const ErreurGesco('Ce mois est hors de l\'année scolaire (octobre à juin).');
     }
@@ -117,6 +125,24 @@ class NoteDepot {
         );
       }
       rethrow;
+    }
+  }
+
+  /// Un compte de saisie lié à un enseignant ne peut toucher qu'aux matières
+  /// qui lui sont confiées.
+  Future<void> _verifierEnseignant(int matiereId) async {
+    final limite = controle.enseignantLimite;
+    if (limite == null) return;
+    final l = await _db.query(
+      'matiere_classe',
+      columns: ['enseignant_id'],
+      where: 'id = ?',
+      whereArgs: [matiereId],
+    );
+    if (l.isEmpty || l.first['enseignant_id'] != limite) {
+      throw const ErreurGesco(
+        'Vous ne pouvez saisir que les notes des matières qui vous sont confiées.',
+      );
     }
   }
 

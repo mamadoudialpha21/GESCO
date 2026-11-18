@@ -118,7 +118,7 @@ void main() {
       final gdb =
           await GescoDatabase.ouvrir(fabrique: databaseFactoryFfi, chemin: chemin);
       final db = gdb.db;
-      expect(await gdb.version(), 2);
+      expect(await gdb.version(), GescoDatabase.versionSchema);
 
       expect((await db.query('eleve')).length, 3);
       expect((await db.query('inscription')).length, 3);

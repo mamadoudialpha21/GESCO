@@ -1,5 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../domain/permissions.dart';
+import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import 'aides.dart';
@@ -10,9 +12,10 @@ import 'aides.dart';
 /// artificielle). Les coefficients sont en centièmes (2,5 -> 250) et
 /// modifiables à tout moment : les notes brutes ne sont jamais touchées.
 class MatiereDepot {
-  MatiereDepot(this._db);
+  MatiereDepot(this._db, {this.controle = Controle.aucun});
 
   final Database _db;
+  final Controle controle;
 
   static const int coefficientMax = 9999;
 
@@ -47,9 +50,10 @@ class MatiereDepot {
     required String nom,
     required int coefficient,
   }) async {
+    controle.exiger(Permission.classesGerer, 'ajouter une matière');
     final nomValide = _nomValide(nom);
     _verifierCoefficient(coefficient);
-    return _db.transaction<MatiereClasse>((txn) async {
+    final matiere = await _db.transaction<MatiereClasse>((txn) async {
       await _verifierClasse(txn, classeId);
       await _verifierNomLibre(txn, classeId, nomValide);
       final ordre = await _prochainOrdre(txn, classeId);
@@ -67,13 +71,17 @@ class MatiereDepot {
         ordre: ordre,
       );
     });
+    await controle.noter('creation', 'matiere', id: matiere.id, details: nomValide);
+    return matiere;
   }
 
   /// Modifie le nom et/ou le coefficient. Les notes déjà saisies restent
   /// inchangées ; seules les moyennes seront recalculées.
   Future<void> modifier(int id, {String? nom, int? coefficient}) async {
+    controle.exiger(Permission.classesGerer, 'modifier une matière');
     final nomValide = nom == null ? null : _nomValide(nom);
     if (coefficient != null) _verifierCoefficient(coefficient);
+    var modifiee = false;
     await _db.transaction<void>((txn) async {
       final lignes = await txn.query(
         'matiere_classe',
@@ -96,12 +104,25 @@ class MatiereDepot {
         where: 'id = ?',
         whereArgs: [id],
       );
+      modifiee = true;
     });
+    if (modifiee) {
+      await controle.noter(
+        'modification',
+        'matiere',
+        id: id,
+        details: [
+          if (nomValide != null) nomValide,
+          if (coefficient != null) 'coefficient $coefficient',
+        ].join(', '),
+      );
+    }
   }
 
   /// Supprime une matière. Refusé si des notes y sont rattachées : on ne perd
   /// jamais de notes par accident.
   Future<void> supprimer(int id) async {
+    controle.exiger(Permission.classesGerer, 'supprimer une matière');
     final lignes = await _db.query(
       'matiere_classe',
       where: 'id = ?',
@@ -118,11 +139,13 @@ class MatiereDepot {
       );
     }
     await _db.delete('matiere_classe', where: 'id = ?', whereArgs: [id]);
+    await controle.noter('suppression', 'matiere', id: id, details: nom);
   }
 
   /// Définit l'ordre d'affichage. [idsDansLOrdre] doit contenir exactement
   /// les matières de la classe, chacune une fois.
   Future<void> reordonner(int classeId, List<int> idsDansLOrdre) async {
+    controle.exiger(Permission.classesGerer, 'réordonner les matières');
     await _db.transaction<void>((txn) async {
       final actuelles = await txn.query(
         'matiere_classe',
@@ -157,12 +180,13 @@ class MatiereDepot {
     required int depuisClasseId,
     required int versClasseId,
   }) async {
+    controle.exiger(Permission.classesGerer, 'copier des matières');
     if (depuisClasseId == versClasseId) {
       throw const ErreurGesco(
         'Choisissez une classe différente comme source de la copie.',
       );
     }
-    return _db.transaction<int>((txn) async {
+    final ajoutees = await _db.transaction<int>((txn) async {
       await _verifierClasse(txn, depuisClasseId);
       await _verifierClasse(txn, versClasseId);
       final sources = await txn.query(
@@ -181,7 +205,7 @@ class MatiereDepot {
           (l['nom'] as String).toLowerCase(),
       };
       var ordre = await _prochainOrdre(txn, versClasseId);
-      var ajoutees = 0;
+      var copiees = 0;
       for (final s in sources) {
         final nom = s['nom'] as String;
         if (presentes.contains(nom.toLowerCase())) continue;
@@ -191,10 +215,19 @@ class MatiereDepot {
           'coefficient': s['coefficient'],
           'ordre': ordre++,
         });
-        ajoutees++;
+        copiees++;
       }
-      return ajoutees;
+      return copiees;
     });
+    if (ajoutees > 0) {
+      await controle.noter(
+        'copie',
+        'matiere',
+        id: versClasseId,
+        details: '$ajoutees matière(s) copiée(s)',
+      );
+    }
+    return ajoutees;
   }
 
   static String _nomValide(String nom) {

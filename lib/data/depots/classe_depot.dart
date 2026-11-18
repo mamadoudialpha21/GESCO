@@ -1,14 +1,17 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../domain/permissions.dart';
+import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import 'aides.dart';
 
 /// Gestion des classes d'une année scolaire.
 class ClasseDepot {
-  ClasseDepot(this._db);
+  ClasseDepot(this._db, {this.controle = Controle.aucun});
 
   final Database _db;
+  final Controle controle;
 
   static Classe _depuis(Map<String, Object?> l) => Classe(
         id: l['id'] as int,
@@ -52,9 +55,10 @@ class ClasseDepot {
     required String nom,
     String niveau = '',
   }) async {
+    controle.exiger(Permission.classesGerer, 'créer une classe');
     final nomValide = _nomValide(nom);
     final niveauValide = _niveauValide(niveau);
-    return _db.transaction<Classe>((txn) async {
+    final classe = await _db.transaction<Classe>((txn) async {
       final annee = await compter(
         txn,
         'SELECT COUNT(*) FROM annee_scolaire WHERE id = ?',
@@ -74,6 +78,8 @@ class ClasseDepot {
         nom: nomValide,
       );
     });
+    await controle.noter('creation', 'classe', id: classe.id, details: nomValide);
+    return classe;
   }
 
   Future<void> modifier(
@@ -81,6 +87,7 @@ class ClasseDepot {
     required String nom,
     required String niveau,
   }) async {
+    controle.exiger(Permission.classesGerer, 'modifier une classe');
     final nomValide = _nomValide(nom);
     final niveauValide = _niveauValide(niveau);
     await _db.transaction<void>((txn) async {
@@ -99,11 +106,13 @@ class ClasseDepot {
         whereArgs: [id],
       );
     });
+    await controle.noter('modification', 'classe', id: id, details: nomValide);
   }
 
   /// Supprime une classe et ses matières. Refusé si des élèves y sont
   /// inscrits (et donc si elle contient des notes).
   Future<void> supprimer(int id) async {
+    controle.exiger(Permission.classesGerer, 'supprimer une classe');
     final classe = await obtenir(id);
     if (classe == null) throw const ErreurGesco('Classe introuvable.');
     final eleves = await compter(
@@ -119,6 +128,7 @@ class ClasseDepot {
       );
     }
     await _db.delete('classe', where: 'id = ?', whereArgs: [id]);
+    await controle.noter('suppression', 'classe', id: id, details: classe.nom);
   }
 
   static String _nomValide(String nom) {

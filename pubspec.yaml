@@ -16,6 +16,8 @@ dependencies:
   sqflite_common_ffi: ^2.3.3
   sqlite3_flutter_libs: ^0.5.0
   path: ^1.9.0
+  # Hachage sécurisé des mots de passe (PBKDF2-HMAC-SHA256).
+  crypto: ^3.0.3
   path_provider: ^2.1.4
   # Sélecteur de fichier (logo, photos, sauvegardes) : boîte de dialogue
   # native du système, fonctionne hors ligne.

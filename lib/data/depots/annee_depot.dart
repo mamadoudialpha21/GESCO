@@ -1,6 +1,8 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../domain/modeles.dart';
+import '../../domain/permissions.dart';
+import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import 'aides.dart';
@@ -11,11 +13,15 @@ import 'aides.dart';
 /// inscriptions et notes. Créer une année ne supprime ni ne modifie jamais
 /// les données des années précédentes.
 class AnneeDepot {
-  AnneeDepot(this._db, {DateTime Function()? maintenant})
-      : _maintenant = maintenant ?? DateTime.now;
+  AnneeDepot(
+    this._db, {
+    DateTime Function()? maintenant,
+    this.controle = Controle.aucun,
+  }) : _maintenant = maintenant ?? DateTime.now;
 
   final Database _db;
   final DateTime Function() _maintenant;
+  final Controle controle;
 
   static AnneeScolaire _depuis(Map<String, Object?> l) => AnneeScolaire(
         id: l['id'] as int,
@@ -59,6 +65,7 @@ class AnneeDepot {
     int? copierDepuisAnneeId,
     bool activer = false,
   }) async {
+    controle.exiger(Permission.anneesGerer, 'créer une année scolaire');
     final nom = libelle.trim();
     if (nom.isEmpty) {
       throw const ErreurGesco(
@@ -134,11 +141,13 @@ class AnneeDepot {
       return nouvelle;
     });
 
+    await controle.noter('creation', 'annee', id: id, details: nom);
     return (await obtenir(id))!;
   }
 
   /// Rend [id] l'unique année active.
   Future<void> activer(int id) async {
+    controle.exiger(Permission.anneesGerer, 'changer l\'année active');
     await _db.transaction<void>((txn) async {
       final existe = await compter(
         txn,
@@ -150,11 +159,13 @@ class AnneeDepot {
       }
       await _activer(txn, id);
     });
+    await controle.noter('activation', 'annee', id: id);
   }
 
   /// Supprime une année vide. Refusé pour l'année active et pour toute année
   /// qui contient des classes (donc des élèves ou des notes possibles).
   Future<void> supprimer(int id) async {
+    controle.exiger(Permission.anneesGerer, 'supprimer une année scolaire');
     final annee = await obtenir(id);
     if (annee == null) {
       throw const ErreurGesco('Année scolaire introuvable.');
@@ -177,6 +188,7 @@ class AnneeDepot {
       );
     }
     await _db.delete('annee_scolaire', where: 'id = ?', whereArgs: [id]);
+    await controle.noter('suppression', 'annee', id: id, details: annee.libelle);
   }
 
   static Future<void> _activer(DatabaseExecutor db, int id) async {

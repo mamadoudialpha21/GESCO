@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/modeles_donnees.dart';
+import '../domain/permissions.dart';
+import 'acces.dart';
 import 'services.dart';
 
 /// État partagé de l'application : année sélectionnée, fiche de
@@ -11,9 +13,16 @@ class EtatApp extends ChangeNotifier {
     this.services, {
     required this.chemin,
     this.problemesIntegrite = const [],
-  });
+  }) : acces = Acces(services);
 
   final Services services;
+
+  /// Connexion, verrouillage et déconnexion.
+  final Acces acces;
+
+  /// Vrai si l'utilisateur connecté a la permission [p] (toujours vrai quand
+  /// l'application tourne sans contrôle d'accès, par exemple dans les tests).
+  bool peut(Permission p) => services.session.peut(p);
 
   /// Emplacement du fichier de base de données (affiché à l'utilisateur).
   final String chemin;

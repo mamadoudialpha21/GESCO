@@ -3,10 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../app/etat_app.dart';
+import '../domain/permissions.dart';
+import 'acces/ecran_mot_de_passe.dart';
 import 'commun/composants.dart';
 import 'inscriptions/page_inscriptions.dart';
 import 'notes/page_notes.dart';
 import 'parametres/page_parametres.dart';
+import 'securite/page_securite.dart';
 import 'tableau_de_bord.dart';
 import 'theme.dart';
 
@@ -18,9 +21,17 @@ class _Destination {
     required this.libelleCourt,
     required this.icone,
     required this.iconeActive,
+    this.permission,
+    this.avecConnexion = false,
   });
 
   final String cle;
+
+  /// Permission nécessaire pour voir cette page (null : toujours visible).
+  final Permission? permission;
+
+  /// Page affichée seulement quand une connexion est exigée.
+  final bool avecConnexion;
 
   /// Titre de la page (barre du haut et menu latéral).
   final String titre;
@@ -38,6 +49,7 @@ const List<_Destination> _destinations = [
     libelleCourt: 'Accueil',
     icone: Icons.dashboard_outlined,
     iconeActive: Icons.dashboard,
+    permission: Permission.tableauDeBord,
   ),
   _Destination(
     cle: 'inscriptions',
@@ -45,6 +57,7 @@ const List<_Destination> _destinations = [
     libelleCourt: 'Inscriptions',
     icone: Icons.people_outline,
     iconeActive: Icons.people,
+    permission: Permission.elevesVoir,
   ),
   _Destination(
     cle: 'notes',
@@ -52,6 +65,7 @@ const List<_Destination> _destinations = [
     libelleCourt: 'Notes',
     icone: Icons.grading_outlined,
     iconeActive: Icons.grading,
+    permission: Permission.notesVoir,
   ),
   _Destination(
     cle: 'parametres',
@@ -59,6 +73,15 @@ const List<_Destination> _destinations = [
     libelleCourt: 'Paramètres',
     icone: Icons.settings_outlined,
     iconeActive: Icons.settings,
+    permission: Permission.etablissementVoir,
+  ),
+  _Destination(
+    cle: 'securite',
+    titre: 'Sécurité',
+    libelleCourt: 'Sécurité',
+    icone: Icons.shield_outlined,
+    iconeActive: Icons.shield,
+    avecConnexion: true,
   ),
 ];
 
@@ -74,38 +97,58 @@ class Coquille extends StatefulWidget {
 }
 
 class _CoquilleState extends State<Coquille> {
-  static const int _pageTableauDeBord = 0;
-  static const int _pageInscriptions = 1;
-  static const int _pageNotes = 2;
-  static const int _pageParametres = 3;
+  String _cle = 'tableau_de_bord';
 
-  int _index = _pageTableauDeBord;
+  void _aller(String cle) => setState(() => _cle = cle);
 
-  void _aller(int index) => setState(() => _index = index);
+  bool _visible(_Destination d) {
+    final session = widget.etat.services.session;
+    if (d.avecConnexion && !session.controle) return false;
+    final p = d.permission;
+    return p == null || session.peut(p);
+  }
+
+  Widget _page(String cle) {
+    final etat = widget.etat;
+    return switch (cle) {
+      'inscriptions' => PageInscriptions(
+          etat: etat,
+          allerAuxParametres: () => _aller('parametres'),
+        ),
+      'notes' => PageNotes(
+          etat: etat,
+          allerAuxParametres: () => _aller('parametres'),
+          allerAuxInscriptions: () => _aller('inscriptions'),
+        ),
+      'parametres' => PageParametres(etat: etat),
+      'securite' => PageSecurite(etat: etat),
+      _ => PageTableauDeBord(
+          etat: etat,
+          allerAuxParametres: () => _aller('parametres'),
+          allerAuxInscriptions: () => _aller('inscriptions'),
+          allerAuxNotes: () => _aller('notes'),
+        ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: widget.etat,
+      listenable: Listenable.merge([widget.etat, widget.etat.services.session]),
       builder: (context, _) {
-        final pages = <Widget>[
-          PageTableauDeBord(
-            etat: widget.etat,
-            allerAuxParametres: () => _aller(_pageParametres),
-            allerAuxInscriptions: () => _aller(_pageInscriptions),
-            allerAuxNotes: () => _aller(_pageNotes),
-          ),
-          PageInscriptions(
-            etat: widget.etat,
-            allerAuxParametres: () => _aller(_pageParametres),
-          ),
-          PageNotes(
-            etat: widget.etat,
-            allerAuxParametres: () => _aller(_pageParametres),
-            allerAuxInscriptions: () => _aller(_pageInscriptions),
-          ),
-          PageParametres(etat: widget.etat),
-        ];
+        final visibles = [for (final d in _destinations) if (_visible(d)) d];
+        if (visibles.isEmpty) {
+          return const Scaffold(
+            body: MessageVide(
+              'Votre compte n\'a accès à aucune page. Demandez à un '
+              'administrateur de modifier vos permissions.',
+              icone: Icons.lock_outline,
+            ),
+          );
+        }
+        if (!visibles.any((d) => d.cle == _cle)) _cle = visibles.first.cle;
+        final index = visibles.indexWhere((d) => d.cle == _cle);
+        void allerIndex(int i) => _aller(visibles[i].cle);
 
         return LayoutBuilder(
           builder: (context, contraintes) {
@@ -114,11 +157,12 @@ class _CoquilleState extends State<Coquille> {
               children: [
                 _BarreSuperieure(
                   etat: widget.etat,
-                  titre: _destinations[_index].titre,
+                  titre: visibles[index].titre,
                   etroit: etroit,
-                  versParametres: () => _aller(_pageParametres),
+                  versParametres: () => _aller('parametres'),
+                  versSecurite: () => _aller('securite'),
                 ),
-                Expanded(child: pages[_index]),
+                Expanded(child: _page(_cle)),
               ],
             );
 
@@ -126,10 +170,10 @@ class _CoquilleState extends State<Coquille> {
               return Scaffold(
                 body: SafeArea(child: contenu),
                 bottomNavigationBar: NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: _aller,
+                  selectedIndex: index,
+                  onDestinationSelected: allerIndex,
                   destinations: [
-                    for (final d in _destinations)
+                    for (final d in visibles)
                       NavigationDestination(
                         icon: Icon(d.icone),
                         selectedIcon: Icon(d.iconeActive),
@@ -145,8 +189,9 @@ class _CoquilleState extends State<Coquille> {
                 children: [
                   _MenuLateral(
                     etat: widget.etat,
-                    index: _index,
-                    onSelection: _aller,
+                    destinations: visibles,
+                    index: index,
+                    onSelection: allerIndex,
                   ),
                   Expanded(child: contenu),
                 ],
@@ -163,11 +208,13 @@ class _CoquilleState extends State<Coquille> {
 class _MenuLateral extends StatelessWidget {
   const _MenuLateral({
     required this.etat,
+    required this.destinations,
     required this.index,
     required this.onSelection,
   });
 
   final EtatApp etat;
+  final List<_Destination> destinations;
   final int index;
   final ValueChanged<int> onSelection;
 
@@ -228,9 +275,9 @@ class _MenuLateral extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 24),
-            for (var i = 0; i < _destinations.length; i++)
+            for (var i = 0; i < destinations.length; i++)
               _ElementMenu(
-                destination: _destinations[i],
+                destination: destinations[i],
                 selectionne: i == index,
                 onTap: () => onSelection(i),
               ),
@@ -342,12 +389,14 @@ class _BarreSuperieure extends StatelessWidget {
     required this.titre,
     required this.etroit,
     required this.versParametres,
+    required this.versSecurite,
   });
 
   final EtatApp etat;
   final String titre;
   final bool etroit;
   final VoidCallback versParametres;
+  final VoidCallback versSecurite;
 
   @override
   Widget build(BuildContext context) {
@@ -391,7 +440,86 @@ class _BarreSuperieure extends StatelessWidget {
               ),
             _SelecteurAnnee(etat: etat, etroit: etroit),
           ],
+          if (etat.services.session.controle &&
+              etat.services.session.utilisateur != null)
+            _MenuUtilisateur(etat: etat, etroit: etroit, versSecurite: versSecurite),
         ],
+      ),
+    );
+  }
+}
+
+/// Pastille de la personne connectée : mot de passe, verrouillage,
+/// déconnexion.
+class _MenuUtilisateur extends StatelessWidget {
+  const _MenuUtilisateur({
+    required this.etat,
+    required this.etroit,
+    required this.versSecurite,
+  });
+
+  final EtatApp etat;
+  final bool etroit;
+  final VoidCallback versSecurite;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = etat.services.session.utilisateur!;
+    return Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: PopupMenuButton<String>(
+        key: const Key('menu_utilisateur'),
+        tooltip: 'Mon compte',
+        offset: const Offset(0, 44),
+        onSelected: (action) {
+          switch (action) {
+            case 'mdp':
+              demanderChangementMotDePasse(context, etat.acces);
+            case 'compte':
+              versSecurite();
+            case 'verrouiller':
+              etat.acces.verrouiller();
+            case 'deconnexion':
+              etat.acces.seDeconnecter();
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            enabled: false,
+            child: Text('${u.nomAffiche} · ${u.role.libelle}'),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem(value: 'compte', child: Text('Mon compte et sécurité')),
+          const PopupMenuItem(value: 'mdp', child: Text('Changer mon mot de passe')),
+          const PopupMenuItem(value: 'verrouiller', child: Text('Verrouiller')),
+          const PopupMenuItem(value: 'deconnexion', child: Text('Se déconnecter')),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: CouleursGesco.fond,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: CouleursGesco.bordure),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.account_circle_outlined, size: 20, color: CouleursGesco.bleu),
+              if (!etroit) ...[
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: Text(
+                    u.nomAffiche,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../domain/permissions.dart';
 import '../../domain/recherche.dart';
+import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import '../validation_eleve.dart';
@@ -15,11 +17,15 @@ import 'aides.dart';
 /// une année scolaire donnée. Les notes, classements et bulletins s'appuient
 /// sur l'inscription.
 class EleveDepot {
-  EleveDepot(this._db, {DateTime Function()? maintenant})
-      : _maintenant = maintenant ?? DateTime.now;
+  EleveDepot(
+    this._db, {
+    DateTime Function()? maintenant,
+    this.controle = Controle.aucun,
+  }) : _maintenant = maintenant ?? DateTime.now;
 
   final Database _db;
   final DateTime Function() _maintenant;
+  final Controle controle;
 
   static const String _requeteListe = '''
     SELECT i.id AS inscription_id, i.eleve_id, i.classe_id, c.nom AS classe_nom,
@@ -123,13 +129,21 @@ class EleveDepot {
     required int anneeId,
     required int classeId,
   }) async {
+    controle.exiger(Permission.elevesGerer, 'inscrire un élève');
     _verifier(eleve);
-    return _db.transaction<int>((txn) async {
+    final id = await _db.transaction<int>((txn) async {
       await _verifierClasse(txn, classeId, anneeId);
       await _verifierMatriculeLibre(txn, eleve.matricule);
       final eleveId = await txn.insert('eleve', _valeurs(eleve));
       return _inscrire(txn, eleveId, classeId, anneeId);
     });
+    await controle.noter(
+      'inscription',
+      'eleve',
+      id: id,
+      details: '${eleve.nom.trim()} ${eleve.prenom.trim()} (${eleve.matricule.trim()})',
+    );
+    return id;
   }
 
   /// Inscrit un élève déjà connu (réinscription d'une année à l'autre).
@@ -138,7 +152,8 @@ class EleveDepot {
     required int anneeId,
     required int classeId,
   }) async {
-    return _db.transaction<int>((txn) async {
+    controle.exiger(Permission.elevesGerer, 'inscrire un élève');
+    final id = await _db.transaction<int>((txn) async {
       final existe = await compter(
         txn,
         'SELECT COUNT(*) FROM eleve WHERE id = ?',
@@ -158,6 +173,8 @@ class EleveDepot {
       }
       return _inscrire(txn, eleveId, classeId, anneeId);
     });
+    await controle.noter('reinscription', 'eleve', id: id, details: 'élève n° $eleveId');
+    return id;
   }
 
   /// Modifie la fiche d'un élève ([Eleve.id] doit exister). Si
@@ -168,6 +185,7 @@ class EleveDepot {
     int? inscriptionId,
     int? nouvelleClasseId,
   }) async {
+    controle.exiger(Permission.elevesGerer, 'modifier un élève');
     _verifier(eleve);
     await _db.transaction<void>((txn) async {
       final existe = await compter(
@@ -190,6 +208,13 @@ class EleveDepot {
         await _changerDeClasse(txn, inscriptionId, nouvelleClasseId);
       }
     });
+    await controle.noter(
+      'modification',
+      'eleve',
+      id: eleve.id,
+      details: '${eleve.nom.trim()} ${eleve.prenom.trim()}'
+          '${nouvelleClasseId == null ? '' : ' (changement de classe)'}',
+    );
   }
 
   /// Supprime l'inscription d'un élève pour son année.
@@ -203,7 +228,9 @@ class EleveDepot {
     int inscriptionId, {
     bool avecNotes = false,
   }) async {
-    return _db.transaction<bool>((txn) async {
+    controle.exiger(Permission.elevesSupprimer, 'supprimer un élève');
+    var details = '';
+    final fiche = await _db.transaction<bool>((txn) async {
       final lignes = await txn.query(
         'inscription',
         where: 'id = ?',
@@ -211,6 +238,16 @@ class EleveDepot {
       );
       if (lignes.isEmpty) throw const ErreurGesco('Inscription introuvable.');
       final eleveId = lignes.first['eleve_id'] as int;
+      final identite = await txn.query(
+        'eleve',
+        columns: ['nom', 'prenom', 'matricule'],
+        where: 'id = ?',
+        whereArgs: [eleveId],
+      );
+      if (identite.isNotEmpty) {
+        final e = identite.first;
+        details = '${e['nom']} ${e['prenom']} (${e['matricule']})';
+      }
 
       final notes = await compter(
         txn,
@@ -243,6 +280,13 @@ class EleveDepot {
       }
       return false;
     });
+    await controle.noter(
+      'suppression',
+      'eleve',
+      id: inscriptionId,
+      details: avecNotes ? '$details (notes supprimées)' : details,
+    );
+    return fiche;
   }
 
   // --------------------------------------------------------------- Interne
