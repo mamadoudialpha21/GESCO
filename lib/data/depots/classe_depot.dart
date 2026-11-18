@@ -18,17 +18,29 @@ class ClasseDepot {
         anneeId: l['annee_id'] as int,
         niveau: (l['niveau'] as String?) ?? '',
         nom: l['nom'] as String,
+        capacite: l['capacite'] as int?,
+        profPrincipalId: l['prof_principal_id'] as int?,
       );
 
   /// Classes d'une année avec leur nombre de matières et d'élèves.
   Future<List<ClasseResume>> lister(int anneeId) async {
     final lignes = await _db.rawQuery(
       '''
-      SELECT c.id, c.annee_id, c.niveau, c.nom,
+      SELECT c.id, c.annee_id, c.niveau, c.nom, c.capacite, c.prof_principal_id,
+        (SELECT TRIM(ens.nom || ' ' || ens.prenom) FROM enseignant ens
+          WHERE ens.id = c.prof_principal_id) AS prof_nom,
         (SELECT COUNT(*) FROM matiere_classe m WHERE m.classe_id = c.id)
           AS nb_matieres,
         (SELECT COUNT(*) FROM inscription i WHERE i.classe_id = c.id)
-          AS nb_eleves
+          AS nb_eleves,
+        (SELECT COUNT(*) FROM inscription i
+          WHERE i.classe_id = c.id AND i.statut = 'inscrit') AS nb_actifs,
+        (SELECT COUNT(*) FROM inscription i JOIN eleve e ON e.id = i.eleve_id
+          WHERE i.classe_id = c.id AND i.statut = 'inscrit' AND e.sexe = 'F')
+          AS nb_filles,
+        (SELECT COUNT(*) FROM inscription i JOIN eleve e ON e.id = i.eleve_id
+          WHERE i.classe_id = c.id AND i.statut = 'inscrit' AND e.sexe = 'M')
+          AS nb_garcons
       FROM classe c
       WHERE c.annee_id = ?
       ORDER BY c.niveau COLLATE NOCASE, c.nom COLLATE NOCASE
@@ -41,6 +53,10 @@ class ClasseDepot {
           classe: _depuis(l),
           nbMatieres: l['nb_matieres'] as int,
           nbEleves: l['nb_eleves'] as int,
+          nbActifs: l['nb_actifs'] as int,
+          nbFilles: l['nb_filles'] as int,
+          nbGarcons: l['nb_garcons'] as int,
+          profPrincipalNom: (l['prof_nom'] as String?) ?? '',
         ),
     ];
   }
@@ -54,10 +70,12 @@ class ClasseDepot {
     required int anneeId,
     required String nom,
     String niveau = '',
+    ReglagesClasse reglages = const ReglagesClasse(),
   }) async {
     controle.exiger(Permission.classesGerer, 'créer une classe');
     final nomValide = _nomValide(nom);
     final niveauValide = _niveauValide(niveau);
+    _verifierCapacite(reglages.capacite);
     final classe = await _db.transaction<Classe>((txn) async {
       final annee = await compter(
         txn,
@@ -66,16 +84,21 @@ class ClasseDepot {
       );
       if (annee == 0) throw const ErreurGesco('Année scolaire introuvable.');
       await _verifierNomLibre(txn, anneeId, nomValide);
+      await _verifierEnseignant(txn, reglages.profPrincipalId);
       final id = await txn.insert('classe', {
         'annee_id': anneeId,
         'niveau': niveauValide,
         'nom': nomValide,
+        'capacite': reglages.capacite,
+        'prof_principal_id': reglages.profPrincipalId,
       });
       return Classe(
         id: id,
         anneeId: anneeId,
         niveau: niveauValide,
         nom: nomValide,
+        capacite: reglages.capacite,
+        profPrincipalId: reglages.profPrincipalId,
       );
     });
     await controle.noter('creation', 'classe', id: classe.id, details: nomValide);
@@ -86,10 +109,12 @@ class ClasseDepot {
     int id, {
     required String nom,
     required String niveau,
+    ReglagesClasse? reglages,
   }) async {
     controle.exiger(Permission.classesGerer, 'modifier une classe');
     final nomValide = _nomValide(nom);
     final niveauValide = _niveauValide(niveau);
+    if (reglages != null) _verifierCapacite(reglages.capacite);
     await _db.transaction<void>((txn) async {
       final lignes = await txn.query(
         'classe',
@@ -99,9 +124,31 @@ class ClasseDepot {
       if (lignes.isEmpty) throw const ErreurGesco('Classe introuvable.');
       final anneeId = lignes.first['annee_id'] as int;
       await _verifierNomLibre(txn, anneeId, nomValide, sauf: id);
+      if (reglages != null) {
+        await _verifierEnseignant(txn, reglages.profPrincipalId);
+        final capacite = reglages.capacite;
+        if (capacite != null) {
+          final actifs = await compter(
+            txn,
+            "SELECT COUNT(*) FROM inscription WHERE classe_id = ? AND statut = 'inscrit'",
+            [id],
+          );
+          if (capacite < actifs) {
+            throw ErreurGesco(
+              'La capacité ($capacite) est inférieure à l\'effectif actuel '
+              '($actifs). Changez d\'abord des élèves de classe.',
+            );
+          }
+        }
+      }
       await txn.update(
         'classe',
-        {'nom': nomValide, 'niveau': niveauValide},
+        {
+          'nom': nomValide,
+          'niveau': niveauValide,
+          if (reglages != null) 'capacite': reglages.capacite,
+          if (reglages != null) 'prof_principal_id': reglages.profPrincipalId,
+        },
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -129,6 +176,23 @@ class ClasseDepot {
     }
     await _db.delete('classe', where: 'id = ?', whereArgs: [id]);
     await controle.noter('suppression', 'classe', id: id, details: classe.nom);
+  }
+
+  static const int capaciteMax = 500;
+
+  static void _verifierCapacite(int? capacite) {
+    if (capacite == null) return;
+    if (capacite < 1 || capacite > capaciteMax) {
+      throw const ErreurGesco(
+        'La capacité doit être comprise entre 1 et $capaciteMax élèves.',
+      );
+    }
+  }
+
+  static Future<void> _verifierEnseignant(DatabaseExecutor db, int? id) async {
+    if (id == null) return;
+    final ok = await compter(db, 'SELECT COUNT(*) FROM enseignant WHERE id = ?', [id]);
+    if (ok == 0) throw const ErreurGesco('Enseignant introuvable.');
   }
 
   static String _nomValide(String nom) {
@@ -169,4 +233,13 @@ class ClasseDepot {
       }
     }
   }
+}
+
+/// Capacité et professeur principal d'une classe. Les valeurs nulles
+/// signifient « non limitée » et « aucun ».
+class ReglagesClasse {
+  const ReglagesClasse({this.capacite, this.profPrincipalId});
+
+  final int? capacite;
+  final int? profPrincipalId;
 }

@@ -51,6 +51,9 @@ List<String> erreursEleve(Eleve eleve, {required DateTime maintenant}) {
   facultatif(eleve.nomMere, 'Le nom de la mère');
   facultatif(eleve.contactParent, 'Le contact du parent ou tuteur');
   facultatif(eleve.adresse, 'L\'adresse');
+  facultatif(eleve.telephone, 'Le téléphone');
+  facultatif(eleve.nomTuteur, 'Le nom du tuteur');
+  facultatif(eleve.contactTuteur, 'Le contact du tuteur');
 
   final photo = eleve.photo;
   if (photo != null) {

@@ -25,6 +25,9 @@ class MatiereDepot {
         nom: l['nom'] as String,
         coefficient: l['coefficient'] as int,
         ordre: l['ordre'] as int,
+        bareme: (l['bareme'] as int?) ?? 20,
+        facultative: ((l['facultative'] as int?) ?? 0) == 1,
+        enseignantId: l['enseignant_id'] as int?,
       );
 
   /// Matières d'une classe, dans l'ordre d'affichage.
@@ -38,10 +41,29 @@ class MatiereDepot {
     return [for (final l in lignes) _depuis(l)];
   }
 
-  /// Nombre de notes (toutes périodes) enregistrées pour une matière.
-  Future<int> nbNotes(int matiereId) => compter(
+  /// Nombre de notes (mensuelles et d'évaluations, toutes périodes)
+  /// enregistrées pour une matière.
+  Future<int> nbNotes(int matiereId) => _nbNotes(_db, matiereId);
+
+  static Future<int> _nbNotes(DatabaseExecutor db, int matiereId) async {
+    final mensuelles = await compter(
+      db,
+      'SELECT COUNT(*) FROM note WHERE matiere_id = ?',
+      [matiereId],
+    );
+    final evaluations = await compter(
+      db,
+      'SELECT COUNT(*) FROM evaluation_note n '
+      'JOIN evaluation e ON e.id = n.evaluation_id WHERE e.matiere_id = ?',
+      [matiereId],
+    );
+    return mensuelles + evaluations;
+  }
+
+  /// Nombre d'évaluations créées pour une matière.
+  Future<int> nbEvaluations(int matiereId) => compter(
         _db,
-        'SELECT COUNT(*) FROM note WHERE matiere_id = ?',
+        'SELECT COUNT(*) FROM evaluation WHERE matiere_id = ?',
         [matiereId],
       );
 
@@ -49,19 +71,27 @@ class MatiereDepot {
     required int classeId,
     required String nom,
     required int coefficient,
+    int bareme = 20,
+    bool facultative = false,
+    int? enseignantId,
   }) async {
     controle.exiger(Permission.classesGerer, 'ajouter une matière');
     final nomValide = _nomValide(nom);
     _verifierCoefficient(coefficient);
+    _verifierBareme(bareme);
     final matiere = await _db.transaction<MatiereClasse>((txn) async {
       await _verifierClasse(txn, classeId);
       await _verifierNomLibre(txn, classeId, nomValide);
+      await _verifierEnseignant(txn, enseignantId);
       final ordre = await _prochainOrdre(txn, classeId);
       final id = await txn.insert('matiere_classe', {
         'classe_id': classeId,
         'nom': nomValide,
         'coefficient': coefficient,
         'ordre': ordre,
+        'bareme': bareme,
+        'facultative': facultative ? 1 : 0,
+        'enseignant_id': enseignantId,
       });
       return MatiereClasse(
         id: id,
@@ -69,18 +99,33 @@ class MatiereDepot {
         nom: nomValide,
         coefficient: coefficient,
         ordre: ordre,
+        bareme: bareme,
+        facultative: facultative,
+        enseignantId: enseignantId,
       );
     });
     await controle.noter('creation', 'matiere', id: matiere.id, details: nomValide);
     return matiere;
   }
 
-  /// Modifie le nom et/ou le coefficient. Les notes déjà saisies restent
-  /// inchangées ; seules les moyennes seront recalculées.
-  Future<void> modifier(int id, {String? nom, int? coefficient}) async {
+  /// Modifie le nom, le coefficient, le barème, le caractère facultatif et/ou
+  /// l'enseignant. Les notes déjà saisies restent inchangées ; seules les
+  /// moyennes seront recalculées. Le barème ne peut plus changer dès qu'une
+  /// note existe (elle serait mal interprétée). [retirerEnseignant] enlève
+  /// l'enseignant actuel.
+  Future<void> modifier(
+    int id, {
+    String? nom,
+    int? coefficient,
+    int? bareme,
+    bool? facultative,
+    int? enseignantId,
+    bool retirerEnseignant = false,
+  }) async {
     controle.exiger(Permission.classesGerer, 'modifier une matière');
     final nomValide = nom == null ? null : _nomValide(nom);
     if (coefficient != null) _verifierCoefficient(coefficient);
+    if (bareme != null) _verifierBareme(bareme);
     var modifiee = false;
     await _db.transaction<void>((txn) async {
       final lignes = await txn.query(
@@ -93,10 +138,33 @@ class MatiereDepot {
       if (nomValide != null) {
         await _verifierNomLibre(txn, classeId, nomValide, sauf: id);
       }
+      if (bareme != null && bareme != (lignes.first['bareme'] as int? ?? 20)) {
+        final notes = await _nbNotes(txn, id);
+        final evaluations = await compter(
+          txn,
+          'SELECT COUNT(*) FROM evaluation WHERE matiere_id = ?',
+          [id],
+        );
+        if (notes > 0 || evaluations > 0) {
+          throw ErreurGesco(
+            'Le barème de « ${lignes.first['nom']} » ne peut plus changer : '
+            '${notes > 0 ? pluriel(notes, 'note') : pluriel(evaluations, 'évaluation')} '
+            '${(notes > 0 ? notes : evaluations) > 1 ? 'sont enregistrées' : 'est enregistrée'}.',
+          );
+        }
+      }
+      if (enseignantId != null) await _verifierEnseignant(txn, enseignantId);
       final valeurs = <String, Object?>{
         if (nomValide != null) 'nom': nomValide,
         if (coefficient != null) 'coefficient': coefficient,
+        if (bareme != null) 'bareme': bareme,
+        if (facultative != null) 'facultative': facultative ? 1 : 0,
       };
+      if (enseignantId != null) {
+        valeurs['enseignant_id'] = enseignantId;
+      } else if (retirerEnseignant) {
+        valeurs['enseignant_id'] = null;
+      }
       if (valeurs.isEmpty) return;
       await txn.update(
         'matiere_classe',
@@ -114,6 +182,10 @@ class MatiereDepot {
         details: [
           if (nomValide != null) nomValide,
           if (coefficient != null) 'coefficient $coefficient',
+          if (bareme != null) 'barème $bareme',
+          if (facultative != null) facultative ? 'facultative' : 'obligatoire',
+          if (enseignantId != null) 'enseignant n° $enseignantId',
+          if (retirerEnseignant && enseignantId == null) 'sans enseignant',
         ].join(', '),
       );
     }
@@ -136,6 +208,15 @@ class MatiereDepot {
         'Impossible de supprimer la matière « $nom » : '
         '${pluriel(notes, 'note')} y '
         '${notes > 1 ? 'sont enregistrées' : 'est enregistrée'}.',
+      );
+    }
+    final evaluations = await nbEvaluations(id);
+    if (evaluations > 0) {
+      throw ErreurGesco(
+        'Impossible de supprimer la matière « $nom » : '
+        '${pluriel(evaluations, 'évaluation')} y '
+        '${evaluations > 1 ? 'sont rattachées' : 'est rattachée'}. '
+        'Supprimez-les d\'abord.',
       );
     }
     await _db.delete('matiere_classe', where: 'id = ?', whereArgs: [id]);
@@ -214,6 +295,8 @@ class MatiereDepot {
           'nom': nom,
           'coefficient': s['coefficient'],
           'ordre': ordre++,
+          'bareme': s['bareme'],
+          'facultative': s['facultative'],
         });
         copiees++;
       }
@@ -247,6 +330,18 @@ class MatiereDepot {
         'Le coefficient doit être strictement positif et inférieur à 100.',
       );
     }
+  }
+
+  static void _verifierBareme(int bareme) {
+    if (bareme < 1 || bareme > 1000) {
+      throw const ErreurGesco('Le barème doit être compris entre 1 et 1000.');
+    }
+  }
+
+  static Future<void> _verifierEnseignant(DatabaseExecutor db, int? id) async {
+    if (id == null) return;
+    final ok = await compter(db, 'SELECT COUNT(*) FROM enseignant WHERE id = ?', [id]);
+    if (ok == 0) throw const ErreurGesco('Enseignant introuvable.');
   }
 
   static Future<void> _verifierClasse(DatabaseExecutor db, int classeId) async {
