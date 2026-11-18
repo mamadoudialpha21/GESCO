@@ -9,6 +9,7 @@ import 'package:gesco/data/depots/utilisateur_depot.dart';
 import 'package:gesco/data/erreurs.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/data/modeles_donnees.dart';
+import 'package:gesco/data/modeles_securite.dart';
 import 'package:gesco/domain/modeles.dart';
 import 'package:gesco/domain/permissions.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';

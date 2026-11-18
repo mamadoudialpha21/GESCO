@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gesco/app/etat_app.dart';
 import 'package:gesco/app/services.dart';
 import 'package:gesco/app/session.dart';
+import 'package:gesco/data/depots/utilisateur_depot.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/domain/permissions.dart';
 import 'package:gesco/ui/acces/porte_acces.dart';
@@ -211,7 +212,8 @@ void main() {
       (tester) async {
     await demarrer(tester, avecAdmin: true);
     await tester.runAsync(() async {
-      await etat.services.utilisateurs.creer(
+      // Dépôt sans contrôle : personne n'est encore connecté à ce stade.
+      await UtilisateurDepot(gdb.db, iterations: 2).creer(
         identifiant: 'prof1',
         role: RoleUtilisateur.saisie,
         motDePasse: 'Provisoire1',
