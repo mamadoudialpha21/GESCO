@@ -404,9 +404,9 @@ void main() {
 
     test('chaque compte a son propre sel : deux mêmes mots de passe, deux empreintes', () async {
       await admin();
-      await depot.creer(identifiant: 'a1', role: RoleUtilisateur.consultation, motDePasse: 'Provisoire1');
-      await depot.creer(identifiant: 'b1', role: RoleUtilisateur.consultation, motDePasse: 'Provisoire1');
-      final lignes = await db.query('utilisateur', where: "identifiant IN ('a1', 'b1')");
+      await depot.creer(identifiant: 'aaa1', role: RoleUtilisateur.consultation, motDePasse: 'Provisoire1');
+      await depot.creer(identifiant: 'bbb1', role: RoleUtilisateur.consultation, motDePasse: 'Provisoire1');
+      final lignes = await db.query('utilisateur', where: "identifiant IN ('aaa1', 'bbb1')");
       expect(lignes[0]['mot_de_passe_hash'], isNot(lignes[1]['mot_de_passe_hash']));
       expect(lignes[0]['sel'], isNot(lignes[1]['sel']));
     });
