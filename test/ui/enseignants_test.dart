@@ -259,8 +259,9 @@ void main() {
 
       await ajouter(tester, 'Diallo', 'Aminata', specialite: 'Mathématiques');
       await attendre(tester, find.text('DIALLO Aminata'));
+      await tester.pumpAndSettle();
 
-      expect(find.textContaining('Mathématiques'), findsOneWidget);
+      expect(find.text('Mathématiques · 0 matière · 0 classe'), findsOneWidget);
       final lignes = await tester.runAsync(() => gdb.db.query('enseignant'));
       expect(lignes, hasLength(1));
       expect(lignes!.first['nom'], 'Diallo');
@@ -377,6 +378,7 @@ void main() {
       await tester.tap(find.byKey(const Key('bouton_valider_classes_confiees')));
       await tester.pump();
       await attendre(tester, find.textContaining('1 classe'));
+      await tester.pumpAndSettle();
 
       final confiees = await tester.runAsync(
         () => etat.services.enseignants.classesConfiees(enseignantId, etat.anneeId!),
@@ -388,7 +390,15 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Supprimer').last);
       await tester.pump();
-      await attendre(tester, find.textContaining('Impossible de supprimer'));
+      await attendre(tester, find.byType(SnackBar));
+      final textes = [
+        for (final t in tester.widgetList<Text>(find.byType(Text))) t.data ?? '',
+      ];
+      expect(
+        find.textContaining('Impossible de supprimer'),
+        findsOneWidget,
+        reason: textes.join(' | '),
+      );
       expect(await tester.runAsync(() => gdb.db.query('enseignant')), hasLength(1));
       await fin(tester);
     });

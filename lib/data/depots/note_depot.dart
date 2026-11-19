@@ -339,7 +339,7 @@ class NoteDepot {
     int? matiereId,
     int? mois,
     String? source,
-  }) {
+  }) async {
     controle.exiger(Permission.journalVoir, 'consulter l\'historique des notes');
     final filtre = _filtreHistorique(
       classeId: classeId,
