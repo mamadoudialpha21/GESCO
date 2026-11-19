@@ -399,7 +399,9 @@ void main() {
       await tester.enterText(find.byKey(const Key('champ_titre')), 'Devoir 1');
       await tester.tap(find.byKey(const Key('enregistrer_evaluation')));
       await tester.pump();
-      await attendre(tester, find.text('Devoir 1'));
+      // (« Devoir 1 » se trouve aussi dans le champ de la fenêtre : on attend
+      // la ligne de détail de la carte.)
+      await attendre(tester, find.text('Maths · Novembre · coef 1 · sur 20'));
       await tester.pumpAndSettle();
 
       final lignes = await tester.runAsync(() => gdb.db.query('evaluation'));
@@ -556,8 +558,9 @@ void main() {
 
       // Verrouiller novembre.
       await tester.tap(find.byKey(const Key('bouton_verrou')));
+      await tester.pump();
+      await attendre(tester, find.text('Verrouiller Novembre ?'));
       await tester.pumpAndSettle();
-      expect(find.text('Verrouiller Novembre ?'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Verrouiller'));
       await tester.pump();
       await attendre(tester, find.text('Mois verrouillé'));
@@ -568,6 +571,8 @@ void main() {
 
       // Déverrouiller.
       await tester.tap(find.byKey(const Key('bouton_verrou')));
+      await tester.pump();
+      await attendre(tester, find.text('Déverrouiller Novembre ?'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Déverrouiller'));
       await tester.pump();
@@ -630,8 +635,9 @@ void main() {
       await attendre(tester, find.byKey(const Key('case_lecture_0_0')));
       expect(find.byKey(const Key('case_lecture_0_1')), findsNothing);
       expect(find.byKey(const Key('case_0_1')), findsOneWidget);
-      // La note de l'évaluation (18) est la note du mois d'Aminata en maths.
-      expect(find.descendant(of: find.byKey(const Key('case_lecture_0_0')), matching: find.text('18,00')),
+      // Les élèves sont triés par nom : BARRY (ligne 0), DIALLO (ligne 1). La
+      // note de l'évaluation (18) est la note du mois de DIALLO en maths.
+      expect(find.descendant(of: find.byKey(const Key('case_lecture_1_0')), matching: find.text('18,00')),
           findsOneWidget);
       await fin(tester);
     });
