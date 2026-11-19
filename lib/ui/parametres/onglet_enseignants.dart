@@ -140,15 +140,15 @@ class _OngletEnseignantsState extends State<OngletEnseignants> {
       cle: (etat.version, etat.anneeId),
       charger: () => etat.services.enseignants.lister(anneeId: etat.anneeId),
       builder: (context, liste) {
-        final terme = normaliserRecherche(_recherche.text);
         final affiches = [
           for (final r in liste)
             if ((_inactifs || r.enseignant.actif) &&
-                (terme.isEmpty ||
-                    normaliserRecherche(
-                      '${r.enseignant.nom} ${r.enseignant.prenom} '
-                      '${r.enseignant.matricule} ${r.enseignant.specialite}',
-                    ).contains(terme)))
+                correspondRecherche(_recherche.text, [
+                  r.enseignant.nom,
+                  r.enseignant.prenom,
+                  r.enseignant.matricule,
+                  r.enseignant.specialite,
+                ]))
               r,
         ];
         final annee = etat.anneeCourante?.libelle;
