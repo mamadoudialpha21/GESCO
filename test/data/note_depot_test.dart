@@ -275,5 +275,14 @@ class _SaisieHorsLimite implements Saisie {
   int? get centiemes => 2500;
 
   @override
+  int? get brut => null;
+
+  @override
+  int? get bareme => null;
+
+  @override
+  int? get centiemesSaisis => 2500;
+
+  @override
   bool get estNumerique => true;
 }

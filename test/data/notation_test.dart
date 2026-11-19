@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide Evaluation;
 import 'package:gesco/data/controle.dart';
 import 'package:gesco/data/depots/annee_depot.dart';
 import 'package:gesco/data/depots/classe_depot.dart';

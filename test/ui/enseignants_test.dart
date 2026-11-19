@@ -204,7 +204,7 @@ void main() {
             chemin: inMemoryDatabasePath,
           )))!;
       etat = EtatApp(
-        Services(gdb, session: Session(), iterations: 2),
+        Services(gdb, session: Session.sansControle(), iterations: 2),
         chemin: 'en mémoire',
       );
       await tester.runAsync(() async {
