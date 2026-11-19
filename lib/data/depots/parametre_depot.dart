@@ -1,5 +1,10 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../domain/bareme.dart';
+import '../../domain/permissions.dart';
+import '../controle.dart';
+import '../erreurs.dart';
+
 /// Clés des paramètres du logiciel.
 class CleParametre {
   const CleParametre._();
@@ -12,13 +17,31 @@ class CleParametre {
   static const recuperationVerrouJusqua = 'securite.recuperation_verrou_jusqua';
   static const theme = 'interface.theme';
   static const lignesParPage = 'interface.lignes_par_page';
+  static const baremeDefaut = 'notation.bareme_defaut';
 }
 
 /// Paramètres du logiciel enregistrés sous forme clé / valeur.
 class ParametreDepot {
-  ParametreDepot(this._db);
+  ParametreDepot(this._db, {this.controle = Controle.aucun});
 
   final Database _db;
+  final Controle controle;
+
+  /// Barème proposé pour les nouvelles matières et évaluations (20 par
+  /// défaut). Les matières et évaluations existantes gardent le leur.
+  Future<int> baremeDefaut() async {
+    final v = await lireEntier(CleParametre.baremeDefaut, baremeParDefaut);
+    return baremeValide(v) ? v : baremeParDefaut;
+  }
+
+  Future<void> definirBaremeDefaut(int bareme) async {
+    controle.exiger(Permission.parametresGerer, 'modifier le barème par défaut');
+    if (!baremeValide(bareme)) {
+      throw const ErreurGesco('Le barème doit être compris entre 1 et 1000.');
+    }
+    await ecrire(CleParametre.baremeDefaut, '$bareme');
+    await controle.noter('modification', 'parametre', details: 'barème par défaut : $bareme');
+  }
 
   Future<String?> lire(String cle) async {
     final l = await _db.query('parametre', where: 'cle = ?', whereArgs: [cle]);

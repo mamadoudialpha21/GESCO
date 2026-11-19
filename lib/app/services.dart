@@ -6,6 +6,7 @@ import '../data/depots/config_resultats_depot.dart';
 import '../data/depots/eleve_depot.dart';
 import '../data/depots/enseignant_depot.dart';
 import '../data/depots/etablissement_depot.dart';
+import '../data/depots/evaluation_depot.dart';
 import '../data/depots/journal_depot.dart';
 import '../data/depots/matiere_depot.dart';
 import '../data/depots/note_depot.dart';
@@ -46,12 +47,14 @@ class Services {
         eleves = EleveDepot(gdb.db, controle: controle),
         enseignants = EnseignantDepot(gdb.db, controle: controle),
         notes = NoteDepot(gdb.db, controle: controle),
-        parametres = ParametreDepot(gdb.db),
+        parametres = ParametreDepot(gdb.db, controle: controle),
         utilisateurs = UtilisateurDepot(
           gdb.db,
           iterations: iterations,
           controle: controle,
-        );
+        ) {
+    evaluations = EvaluationDepot(gdb.db, notes: notes, controle: controle);
+  }
 
   final GescoDatabase gdb;
   final Session session;
@@ -66,6 +69,7 @@ class Services {
   final EleveDepot eleves;
   final EnseignantDepot enseignants;
   final NoteDepot notes;
+  late final EvaluationDepot evaluations;
   final ParametreDepot parametres;
   final UtilisateurDepot utilisateurs;
 }

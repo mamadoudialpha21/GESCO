@@ -21,27 +21,76 @@ enum EtatNote {
 }
 
 /// Contenu d'une cellule de note (élève, matière, mois).
+///
+/// [centiemes] est toujours la note ramenée sur 20 : c'est elle que les
+/// moyennes utilisent. Quand la note a été saisie sur un autre barème
+/// (10, 40, 100...), [brut] et [bareme] gardent la saisie d'origine.
 class Saisie {
   const Saisie.valeur(int valeur)
       : etat = EtatNote.saisie,
         centiemes = valeur,
+        brut = null,
+        bareme = null,
         assert(valeur >= 0 && valeur <= 2000);
+
+  /// Note saisie sur [bareme] (en centièmes : 31 sur 40 -> 3100), convertie
+  /// sur 20 au centième près, demi vers le haut.
+  const Saisie.surBareme(int this.brut, int this.bareme)
+      : etat = EtatNote.saisie,
+        centiemes = (2 * brut * 20 + bareme) ~/ (2 * bareme),
+        assert(bareme >= 1 && bareme <= 1000),
+        assert(brut >= 0 && brut <= bareme * 100);
 
   const Saisie.absent()
       : etat = EtatNote.absent,
-        centiemes = null;
+        centiemes = null,
+        brut = null,
+        bareme = null;
 
   const Saisie.dispense()
       : etat = EtatNote.dispense,
-        centiemes = null;
+        centiemes = null,
+        brut = null,
+        bareme = null;
 
   final EtatNote etat;
 
   /// Note sur 20 en centièmes (0 à 2000). Null si absent ou dispensé.
   final int? centiemes;
 
+  /// Note d'origine en centièmes sur [bareme], ou null si elle a été saisie
+  /// directement sur 20.
+  final int? brut;
+
+  /// Barème de la saisie d'origine, ou null (note saisie sur 20).
+  final int? bareme;
+
   /// Vrai si une note chiffrée a été saisie.
   bool get estNumerique => etat == EtatNote.saisie;
+
+  /// Note telle qu'elle a été tapée (sur son barème) : [brut] si elle existe,
+  /// sinon la note sur 20.
+  int? get centiemesSaisis => brut ?? centiemes;
+
+  @override
+  bool operator ==(Object autre) =>
+      autre is Saisie &&
+      autre.etat == etat &&
+      autre.centiemes == centiemes &&
+      autre.brut == brut &&
+      autre.bareme == bareme;
+
+  @override
+  int get hashCode => Object.hash(etat, centiemes, brut, bareme);
+
+  @override
+  String toString() => switch (etat) {
+        EtatNote.saisie => brut == null
+            ? 'Saisie($centiemes)'
+            : 'Saisie($brut sur $bareme = $centiemes sur 20)',
+        EtatNote.absent => 'Saisie(absent)',
+        EtatNote.dispense => 'Saisie(dispensé)',
+      };
 }
 
 /// Matière d'une classe avec son coefficient (en centièmes : 2,5 -> 250).

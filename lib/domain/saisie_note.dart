@@ -4,6 +4,7 @@
 library;
 
 import 'arrondi.dart';
+import 'bareme.dart';
 import 'modeles.dart';
 
 /// Texte affiché dans une case absente / dispensée.
@@ -43,8 +44,10 @@ String _sansAccents(String texte) => texte
 /// - vide : la case est vidée (note « non saisie ») ;
 /// - `A`, `ABS`, `absent` : élève absent ;
 /// - `D`, `DISP`, `dispensé` : élève dispensé ;
-/// - un nombre de 0 à 20, virgule ou point, 2 décimales au plus.
-LectureNote lireNoteSaisie(String texte) {
+/// - un nombre de 0 à [bareme] (20 par défaut), virgule ou point, 2 décimales
+///   au plus. Sur un barème autre que 20, la note est conservée telle quelle
+///   et convertie sur 20 pour les moyennes.
+LectureNote lireNoteSaisie(String texte, {int bareme = baremeParDefaut}) {
   final brut = texte.trim();
   if (brut.isEmpty) return const LectureNote.vide();
 
@@ -59,8 +62,14 @@ LectureNote lireNoteSaisie(String texte) {
     return const LectureNote.valide(Saisie.dispense());
   }
 
-  final valeur = analyserNote(brut);
-  if (valeur != null) return LectureNote.valide(Saisie.valeur(valeur));
+  final valeur = analyserNoteSurBareme(brut, bareme);
+  if (valeur != null) {
+    return LectureNote.valide(
+      bareme == baremeParDefaut
+          ? Saisie.valeur(valeur)
+          : Saisie.surBareme(valeur, bareme),
+    );
+  }
 
   final nombre = RegExp(r'^(\d+)(?:[.,](\d*))?$').firstMatch(brut);
   if (nombre != null) {
@@ -70,20 +79,25 @@ LectureNote lireNoteSaisie(String texte) {
         '« $brut » a trop de décimales : 2 chiffres au plus après la virgule.',
       );
     }
-    return LectureNote.invalide('« $brut » dépasse 20 : la note doit être entre 0 et 20.');
+    return LectureNote.invalide(
+      '« $brut » dépasse $bareme : la note doit être entre 0 et $bareme.',
+    );
   }
   return LectureNote.invalide(
-    '« $brut » n\'est pas une note valide : entrez un nombre de 0 à 20 '
-    '(ex. 14,5), A pour absent ou D pour dispensé.',
+    '« $brut » n\'est pas une note valide : entrez un nombre de 0 à $bareme '
+    '(ex. ${_exemple(bareme)}), A pour absent ou D pour dispensé.',
   );
 }
+
+/// Exemple de note décimale plausible pour un barème (14,5 sur 20).
+String _exemple(int bareme) => '${bareme * 7 ~/ 10},5';
 
 /// Texte affiché pour le contenu d'une case (vide si « non saisie »).
 String texteSaisie(Saisie? saisie) {
   if (saisie == null) return '';
   switch (saisie.etat) {
     case EtatNote.saisie:
-      return formaterCentiemes(saisie.centiemes);
+      return formaterCentiemes(saisie.centiemesSaisis);
     case EtatNote.absent:
       return texteAbsent;
     case EtatNote.dispense:
