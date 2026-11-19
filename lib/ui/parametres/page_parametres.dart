@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/etat_app.dart';
 import 'onglet_annees.dart';
 import 'onglet_classes_matieres.dart';
+import 'onglet_enseignants.dart';
 import 'onglet_etablissement.dart';
 import 'onglet_resultats.dart';
 
 /// Espace de configuration : établissement, années, classes et matières,
-/// mentions et décisions.
+/// enseignants, mentions et décisions.
 class PageParametres extends StatelessWidget {
   const PageParametres({super.key, required this.etat});
 
@@ -16,7 +17,7 @@ class PageParametres extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: [
           Container(
@@ -32,6 +33,7 @@ class PageParametres extends StatelessWidget {
                   text: 'Classes et matières',
                   icon: Icon(Icons.menu_book_outlined),
                 ),
+                Tab(text: 'Enseignants', icon: Icon(Icons.badge_outlined)),
                 Tab(
                   text: 'Mentions et décisions',
                   icon: Icon(Icons.emoji_events_outlined),
@@ -46,6 +48,7 @@ class PageParametres extends StatelessWidget {
                 OngletEtablissement(etat: etat),
                 OngletAnnees(etat: etat),
                 OngletClassesMatieres(etat: etat),
+                OngletEnseignants(etat: etat),
                 OngletResultats(etat: etat),
               ],
             ),

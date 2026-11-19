@@ -1,16 +1,13 @@
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
-import '../../data/erreurs.dart';
-import '../../data/images.dart';
 import '../../data/modeles_donnees.dart';
+import '../../domain/permissions.dart';
 import '../commun/composants.dart';
 import '../commun/dialogues.dart';
-import '../theme.dart';
+import '../commun/selecteur_image.dart';
 
 /// Nom, logo, adresse et coordonnées de l'établissement. Le logo apparaîtra
 /// automatiquement sur tous les documents imprimables.
@@ -28,7 +25,12 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
   late final TextEditingController _adresse;
   late final TextEditingController _telephone;
   late final TextEditingController _email;
+  late final TextEditingController _directeur;
+  late final TextEditingController _devise;
+  late final TextEditingController _infosAdmin;
   Uint8List? _logo;
+  Uint8List? _signature;
+  Uint8List? _cachet;
 
   @override
   void initState() {
@@ -38,7 +40,12 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
     _adresse = TextEditingController(text: e.adresse);
     _telephone = TextEditingController(text: e.telephone);
     _email = TextEditingController(text: e.email);
+    _directeur = TextEditingController(text: e.directeur);
+    _devise = TextEditingController(text: e.devise);
+    _infosAdmin = TextEditingController(text: e.infosAdmin);
     _logo = e.logo;
+    _signature = e.signatureDirecteur;
+    _cachet = e.cachet;
   }
 
   @override
@@ -47,35 +54,27 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
     _adresse.dispose();
     _telephone.dispose();
     _email.dispose();
+    _directeur.dispose();
+    _devise.dispose();
+    _infosAdmin.dispose();
     super.dispose();
   }
 
-  Future<void> _choisirLogo() async {
-    final resultat = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['png', 'jpg', 'jpeg'],
-      withData: true,
-    );
-    if (resultat == null || resultat.files.isEmpty) return;
+  Future<Uint8List?> _choisirImage(String nom) => choisirImage(context, nom);
 
-    final fichier = resultat.files.single;
-    Uint8List? octets = fichier.bytes;
-    final chemin = fichier.path;
-    if (octets == null && chemin != null) {
-      octets = await File(chemin).readAsBytes();
-    }
-    if (!mounted) return;
-    if (octets == null) {
-      afficherMessage(context, 'Impossible de lire le fichier choisi.', erreur: true);
-      return;
-    }
-    try {
-      verifierImage(octets, tailleMax: tailleMaxLogo, nom: 'Le logo');
-    } on ErreurGesco catch (e) {
-      afficherMessage(context, e.message, erreur: true);
-      return;
-    }
-    setState(() => _logo = octets);
+  Future<void> _choisirLogo() async {
+    final image = await _choisirImage('Le logo');
+    if (image != null) setState(() => _logo = image);
+  }
+
+  Future<void> _choisirSignature() async {
+    final image = await _choisirImage('La signature');
+    if (image != null) setState(() => _signature = image);
+  }
+
+  Future<void> _choisirCachet() async {
+    final image = await _choisirImage('Le cachet');
+    if (image != null) setState(() => _cachet = image);
   }
 
   Future<void> _enregistrer() async {
@@ -89,6 +88,11 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
           telephone: _telephone.text,
           email: _email.text,
           logo: _logo,
+          directeur: _directeur.text,
+          devise: _devise.text,
+          infosAdmin: _infosAdmin.text,
+          signatureDirecteur: _signature,
+          cachet: _cachet,
         ),
       ),
       succes: 'Informations de l\'établissement enregistrées.',
@@ -104,7 +108,7 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
         const TitreSection(
           'Établissement',
           sousTitre:
-              'Ces informations figurent en en-tête des bulletins et des documents imprimés.',
+              'Ces informations figurent en en-tête des bulletins et des documents imprimés ; la signature et le cachet apparaissent en bas des bulletins.',
         ),
         const SizedBox(height: 16),
         Align(
@@ -147,70 +151,52 @@ class _OngletEtablissementState extends State<OngletEtablissement> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Logo',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _directeur,
+                      decoration: champ('Directeur ou directrice'),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: CouleursGesco.grisClair,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.black12),
-                          ),
-                          child: _logo == null
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.image_outlined,
-                                    size: 40,
-                                    color: CouleursGesco.gris,
-                                  ),
-                                )
-                              : Padding(
-                                  padding: const EdgeInsets.all(6),
-                                  child: Image.memory(
-                                    _logo!,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, erreur, trace) =>
-                                        const Center(child: Text('Image illisible')),
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 20),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _choisirLogo,
-                              icon: const Icon(Icons.upload_file),
-                              label: Text(
-                                _logo == null ? 'Choisir un logo…' : 'Changer le logo…',
-                              ),
-                            ),
-                            if (_logo != null)
-                              TextButton.icon(
-                                onPressed: () => setState(() => _logo = null),
-                                icon: const Icon(Icons.delete_outline),
-                                label: const Text('Retirer le logo'),
-                              ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'PNG ou JPEG, 2 Mo maximum.',
-                              style: TextStyle(color: CouleursGesco.gris),
-                            ),
-                          ],
-                        ),
-                      ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _devise,
+                      decoration: champ('Devise'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _infosAdmin,
+                      decoration: champ(
+                        'Informations administratives',
+                        aide: 'Agrément, boîte postale, ville... (imprimé dans l\'en-tête)',
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 24),
+                    SelecteurImage(
+                      titre: 'Logo',
+                      image: _logo,
+                      onChoisir: _choisirLogo,
+                      onRetirer: () => setState(() => _logo = null),
+                    ),
+                    const SizedBox(height: 20),
+                    SelecteurImage(
+                      titre: 'Signature du directeur',
+                      image: _signature,
+                      onChoisir: _choisirSignature,
+                      onRetirer: () => setState(() => _signature = null),
+                    ),
+                    const SizedBox(height: 20),
+                    SelecteurImage(
+                      titre: 'Cachet de l\'établissement',
+                      image: _cachet,
+                      onChoisir: _choisirCachet,
+                      onRetirer: () => setState(() => _cachet = null),
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
-                      onPressed: _enregistrer,
+                      onPressed:
+                          widget.etat.peut(Permission.etablissementModifier)
+                              ? _enregistrer
+                              : null,
                       icon: const Icon(Icons.save),
                       label: const Text('Enregistrer'),
                     ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
+import '../../data/depots/classe_depot.dart';
 import '../../data/modeles_donnees.dart';
+import '../../domain/permissions.dart';
 import '../../domain/arrondi.dart';
 import '../commun/chargeur.dart';
 import '../commun/composants.dart';
@@ -13,11 +15,24 @@ class _Donnees {
     required this.classes,
     required this.matieres,
     required this.selection,
+    this.enseignants = const [],
   });
 
   final List<ClasseResume> classes;
   final List<MatiereClasse> matieres;
   final int? selection;
+
+  /// Tous les enseignants (pour choisir le professeur principal et
+  /// l'enseignant d'une matière).
+  final List<Enseignant> enseignants;
+
+  String nomEnseignant(int? id) {
+    if (id == null) return '';
+    for (final e in enseignants) {
+      if (e.id == id) return e.nomComplet;
+    }
+    return '';
+  }
 
   ClasseResume? get classeSelectionnee {
     for (final c in classes) {
@@ -61,17 +76,25 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
     final matieres = selection == null
         ? <MatiereClasse>[]
         : await _etat.services.matieres.lister(selection);
-    return _Donnees(classes: classes, matieres: matieres, selection: selection);
+    final enseignants = [
+      for (final r in await _etat.services.enseignants.lister()) r.enseignant,
+    ];
+    return _Donnees(
+      classes: classes,
+      matieres: matieres,
+      selection: selection,
+      enseignants: enseignants,
+    );
   }
 
   // ------------------------------------------------------------- Classes
 
-  Future<void> _ajouterClasse() async {
+  Future<void> _ajouterClasse(_Donnees donnees) async {
     final anneeId = _etat.anneeId;
     if (anneeId == null) return;
     final saisie = await showDialog<_SaisieClasse>(
       context: context,
-      builder: (ctx) => const _DialogueClasse(),
+      builder: (ctx) => _DialogueClasse(enseignants: donnees.enseignants),
     );
     if (saisie == null || !mounted) return;
     Classe? creee;
@@ -82,6 +105,10 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
           anneeId: anneeId,
           nom: saisie.nom,
           niveau: saisie.niveau,
+          reglages: ReglagesClasse(
+            capacite: saisie.capacite,
+            profPrincipalId: saisie.profPrincipalId,
+          ),
         );
       },
       succes: 'Classe « ${saisie.nom} » créée.',
@@ -93,10 +120,13 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
     }
   }
 
-  Future<void> _modifierClasse(Classe classe) async {
+  Future<void> _modifierClasse(Classe classe, _Donnees donnees) async {
     final saisie = await showDialog<_SaisieClasse>(
       context: context,
-      builder: (ctx) => _DialogueClasse(existante: classe),
+      builder: (ctx) => _DialogueClasse(
+        existante: classe,
+        enseignants: donnees.enseignants,
+      ),
     );
     if (saisie == null || !mounted) return;
     final ok = await executer(
@@ -105,6 +135,10 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
         classe.id,
         nom: saisie.nom,
         niveau: saisie.niveau,
+        reglages: ReglagesClasse(
+          capacite: saisie.capacite,
+          profPrincipalId: saisie.profPrincipalId,
+        ),
       ),
       succes: 'Classe modifiée.',
     );
@@ -132,10 +166,10 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
 
   // ------------------------------------------------------------ Matières
 
-  Future<void> _ajouterMatiere(int classeId) async {
+  Future<void> _ajouterMatiere(int classeId, _Donnees donnees) async {
     final saisie = await showDialog<_SaisieMatiere>(
       context: context,
-      builder: (ctx) => const _DialogueMatiere(),
+      builder: (ctx) => _DialogueMatiere(enseignants: donnees.enseignants),
     );
     if (saisie == null || !mounted) return;
     final ok = await executer(
@@ -145,6 +179,9 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
           classeId: classeId,
           nom: saisie.nom,
           coefficient: saisie.coefficient,
+          bareme: saisie.bareme,
+          facultative: saisie.facultative,
+          enseignantId: saisie.enseignantId,
         );
       },
       succes: 'Matière « ${saisie.nom} » ajoutée.',
@@ -152,10 +189,13 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
     if (ok) _etat.donneesModifiees();
   }
 
-  Future<void> _modifierMatiere(MatiereClasse matiere) async {
+  Future<void> _modifierMatiere(MatiereClasse matiere, _Donnees donnees) async {
     final saisie = await showDialog<_SaisieMatiere>(
       context: context,
-      builder: (ctx) => _DialogueMatiere(existante: matiere),
+      builder: (ctx) => _DialogueMatiere(
+        existante: matiere,
+        enseignants: donnees.enseignants,
+      ),
     );
     if (saisie == null || !mounted) return;
     final ok = await executer(
@@ -164,6 +204,10 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
         matiere.id,
         nom: saisie.nom,
         coefficient: saisie.coefficient,
+        bareme: saisie.bareme,
+        facultative: saisie.facultative,
+        enseignantId: saisie.enseignantId,
+        retirerEnseignant: saisie.enseignantId == null,
       ),
       succes: 'Matière modifiée. Les moyennes seront recalculées.',
     );
@@ -267,6 +311,7 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
 
   Widget _panneauClasses(_Donnees donnees) {
     final annee = _etat.anneeCourante;
+    final gerer = _etat.peut(Permission.classesGerer);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -281,7 +326,7 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
                 ),
               ),
               FilledButton.icon(
-                onPressed: _ajouterClasse,
+                onPressed: gerer ? () => _ajouterClasse(donnees) : null,
                 icon: const Icon(Icons.add),
                 label: const Text('Ajouter'),
               ),
@@ -313,16 +358,27 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           subtitle: Text(_sousTitreClasse(r)),
+                          isThreeLine: true,
                           onTap: () => setState(() => _classeId = r.classe.id),
                           trailing: PopupMenuButton<String>(
                             tooltip: 'Actions',
                             onSelected: (action) {
-                              if (action == 'modifier') _modifierClasse(r.classe);
+                              if (action == 'modifier') {
+                                _modifierClasse(r.classe, donnees);
+                              }
                               if (action == 'supprimer') _supprimerClasse(r.classe);
                             },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(value: 'modifier', child: Text('Modifier')),
-                              PopupMenuItem(value: 'supprimer', child: Text('Supprimer')),
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'modifier',
+                                enabled: gerer,
+                                child: const Text('Modifier'),
+                              ),
+                              PopupMenuItem(
+                                value: 'supprimer',
+                                enabled: gerer,
+                                child: const Text('Supprimer'),
+                              ),
                             ],
                           ),
                         ),
@@ -338,7 +394,27 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
     final morceaux = <String>[];
     if (r.classe.niveau.isNotEmpty) morceaux.add(r.classe.niveau);
     morceaux.add('${r.nbMatieres} matière${r.nbMatieres > 1 ? 's' : ''}');
-    morceaux.add('${r.nbEleves} élève${r.nbEleves > 1 ? 's' : ''}');
+    final partis = r.nbEleves - r.nbActifs;
+    var eleves = '${r.nbActifs} élève${r.nbActifs > 1 ? 's' : ''}'
+        ' (${r.nbFilles} F / ${r.nbGarcons} G)';
+    final capacite = r.classe.capacite;
+    if (capacite != null) eleves += ' sur $capacite';
+    if (partis > 0) eleves += ', $partis parti${partis > 1 ? 's' : ''}';
+    morceaux.add(eleves);
+    final ligne2 = r.profPrincipalNom.isEmpty
+        ? 'Pas de professeur principal'
+        : 'Prof. principal : ${r.profPrincipalNom}';
+    return '${morceaux.join(' · ')}\n$ligne2';
+  }
+
+  String _sousTitreMatiere(MatiereClasse m, _Donnees donnees) {
+    final morceaux = <String>[
+      'Coefficient ${formaterCoefficient(m.coefficient)}',
+      'sur ${m.bareme}',
+      if (m.facultative) 'facultative (hors moyenne générale)',
+      if (m.enseignantId != null && donnees.nomEnseignant(m.enseignantId).isNotEmpty)
+        donnees.nomEnseignant(m.enseignantId),
+    ];
     return morceaux.join(' · ');
   }
 
@@ -351,6 +427,7 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
       );
     }
     final matieres = donnees.matieres;
+    final gerer = _etat.peut(Permission.classesGerer);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -372,12 +449,12 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
           runSpacing: 8,
           children: [
             FilledButton.icon(
-              onPressed: () => _ajouterMatiere(classe.classe.id),
+              onPressed: gerer ? () => _ajouterMatiere(classe.classe.id, donnees) : null,
               icon: const Icon(Icons.add),
               label: const Text('Ajouter une matière'),
             ),
             OutlinedButton.icon(
-              onPressed: () => _copierDepuis(donnees),
+              onPressed: gerer ? () => _copierDepuis(donnees) : null,
               icon: const Icon(Icons.copy_all),
               label: const Text('Copier depuis une autre classe…'),
             ),
@@ -425,20 +502,18 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
                       ],
                     ),
                     title: Text(matieres[i].nom),
-                    subtitle: Text(
-                      'Coefficient ${formaterCoefficient(matieres[i].coefficient)}',
-                    ),
+                    subtitle: Text(_sousTitreMatiere(matieres[i], donnees)),
                     trailing: Wrap(
                       spacing: 4,
                       children: [
                         IconButton(
                           tooltip: 'Modifier',
-                          onPressed: () => _modifierMatiere(matieres[i]),
+                          onPressed: gerer ? () => _modifierMatiere(matieres[i], donnees) : null,
                           icon: const Icon(Icons.edit_outlined),
                         ),
                         IconButton(
                           tooltip: 'Supprimer',
-                          onPressed: () => _supprimerMatiere(matieres[i]),
+                          onPressed: gerer ? () => _supprimerMatiere(matieres[i]) : null,
                           icon: const Icon(
                             Icons.delete_outline,
                             color: CouleursGesco.rouge,
@@ -478,16 +553,65 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
 // ---------------------------------------------------------------- Dialogues
 
 class _SaisieClasse {
-  const _SaisieClasse(this.nom, this.niveau);
+  const _SaisieClasse(this.nom, this.niveau, this.capacite, this.profPrincipalId);
 
   final String nom;
   final String niveau;
+  final int? capacite;
+  final int? profPrincipalId;
+}
+
+/// Liste déroulante d'enseignants, avec une première entrée « aucun ».
+class _ChoixEnseignant extends StatelessWidget {
+  const _ChoixEnseignant({
+    required this.libelle,
+    required this.enseignants,
+    required this.valeur,
+    required this.onChanged,
+    required this.aucun,
+  });
+
+  final String libelle;
+  final List<Enseignant> enseignants;
+  final int? valeur;
+  final ValueChanged<int?> onChanged;
+  final String aucun;
+
+  @override
+  Widget build(BuildContext context) {
+    // Un enseignant devenu inactif reste proposé tant qu'il est choisi.
+    final proposes = [
+      for (final e in enseignants)
+        if (e.actif || e.id == valeur) e,
+    ];
+    final existe = proposes.any((e) => e.id == valeur);
+    return InputDecorator(
+      decoration: champ(libelle),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int?>(
+          isExpanded: true,
+          isDense: true,
+          value: existe ? valeur : null,
+          items: [
+            DropdownMenuItem<int?>(value: null, child: Text(aucun)),
+            for (final e in proposes)
+              DropdownMenuItem<int?>(
+                value: e.id,
+                child: Text(e.actif ? e.nomComplet : '${e.nomComplet} (inactif)'),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
 }
 
 class _DialogueClasse extends StatefulWidget {
-  const _DialogueClasse({this.existante});
+  const _DialogueClasse({this.existante, this.enseignants = const []});
 
   final Classe? existante;
+  final List<Enseignant> enseignants;
 
   @override
   State<_DialogueClasse> createState() => _DialogueClasseState();
@@ -496,29 +620,49 @@ class _DialogueClasse extends StatefulWidget {
 class _DialogueClasseState extends State<_DialogueClasse> {
   late final TextEditingController _nom;
   late final TextEditingController _niveau;
+  late final TextEditingController _capacite;
+  int? _profPrincipalId;
   String? _erreur;
+  String? _erreurCapacite;
 
   @override
   void initState() {
     super.initState();
     _nom = TextEditingController(text: widget.existante?.nom ?? '');
     _niveau = TextEditingController(text: widget.existante?.niveau ?? '');
+    final capacite = widget.existante?.capacite;
+    _capacite = TextEditingController(text: capacite == null ? '' : '$capacite');
+    _profPrincipalId = widget.existante?.profPrincipalId;
   }
 
   @override
   void dispose() {
     _nom.dispose();
     _niveau.dispose();
+    _capacite.dispose();
     super.dispose();
   }
 
   void _valider() {
     final nom = _nom.text.trim();
-    if (nom.isEmpty) {
-      setState(() => _erreur = 'Le nom de la classe est obligatoire.');
-      return;
+    final texteCapacite = _capacite.text.trim();
+    int? capacite;
+    String? erreurCapacite;
+    if (texteCapacite.isNotEmpty) {
+      capacite = int.tryParse(texteCapacite);
+      if (capacite == null || capacite < 1 || capacite > ClasseDepot.capaciteMax) {
+        erreurCapacite =
+            'Entier de 1 à ${ClasseDepot.capaciteMax} (ou laissez vide).';
+      }
     }
-    Navigator.of(context).pop(_SaisieClasse(nom, _niveau.text.trim()));
+    setState(() {
+      _erreur = nom.isEmpty ? 'Le nom de la classe est obligatoire.' : null;
+      _erreurCapacite = erreurCapacite;
+    });
+    if (nom.isEmpty || erreurCapacite != null) return;
+    Navigator.of(context).pop(
+      _SaisieClasse(nom, _niveau.text.trim(), capacite, _profPrincipalId),
+    );
   }
 
   @override
@@ -527,22 +671,43 @@ class _DialogueClasseState extends State<_DialogueClasse> {
       title: Text(widget.existante == null ? 'Ajouter une classe' : 'Modifier la classe'),
       content: SizedBox(
         width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nom,
-              autofocus: true,
-              decoration: champ('Nom de la classe', aide: 'Exemple : 10e A', erreur: _erreur),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _niveau,
-              decoration: champ('Niveau d\'études (facultatif)', aide: 'Exemple : 10e année'),
-              onSubmitted: (_) => _valider(),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nom,
+                autofocus: true,
+                decoration: champ('Nom de la classe', aide: 'Exemple : 10e A', erreur: _erreur),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _niveau,
+                decoration: champ('Niveau d\'études (facultatif)', aide: 'Exemple : 10e année'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _capacite,
+                decoration: champ(
+                  'Capacité (facultatif)',
+                  aide: 'Nombre maximal d\'élèves ; vide = non limitée',
+                  erreur: _erreurCapacite,
+                ),
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => _valider(),
+              ),
+              const SizedBox(height: 16),
+              _ChoixEnseignant(
+                libelle: 'Professeur principal',
+                enseignants: widget.enseignants,
+                valeur: _profPrincipalId,
+                aucun: 'Aucun',
+                onChanged: (id) => setState(() => _profPrincipalId = id),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -557,16 +722,26 @@ class _DialogueClasseState extends State<_DialogueClasse> {
 }
 
 class _SaisieMatiere {
-  const _SaisieMatiere(this.nom, this.coefficient);
+  const _SaisieMatiere(
+    this.nom,
+    this.coefficient,
+    this.bareme,
+    this.facultative,
+    this.enseignantId,
+  );
 
   final String nom;
   final int coefficient;
+  final int bareme;
+  final bool facultative;
+  final int? enseignantId;
 }
 
 class _DialogueMatiere extends StatefulWidget {
-  const _DialogueMatiere({this.existante});
+  const _DialogueMatiere({this.existante, this.enseignants = const []});
 
   final MatiereClasse? existante;
+  final List<Enseignant> enseignants;
 
   @override
   State<_DialogueMatiere> createState() => _DialogueMatiereState();
@@ -575,8 +750,12 @@ class _DialogueMatiere extends StatefulWidget {
 class _DialogueMatiereState extends State<_DialogueMatiere> {
   late final TextEditingController _nom;
   late final TextEditingController _coefficient;
+  late final TextEditingController _bareme;
+  bool _facultative = false;
+  int? _enseignantId;
   String? _erreurNom;
   String? _erreurCoefficient;
+  String? _erreurBareme;
 
   @override
   void initState() {
@@ -586,26 +765,36 @@ class _DialogueMatiereState extends State<_DialogueMatiere> {
     _coefficient = TextEditingController(
       text: m == null ? '1' : formaterCoefficient(m.coefficient),
     );
+    _bareme = TextEditingController(text: '${m?.bareme ?? 20}');
+    _facultative = m?.facultative ?? false;
+    _enseignantId = m?.enseignantId;
   }
 
   @override
   void dispose() {
     _nom.dispose();
     _coefficient.dispose();
+    _bareme.dispose();
     super.dispose();
   }
 
   void _valider() {
     final nom = _nom.text.trim();
     final coefficient = analyserCoefficient(_coefficient.text);
+    final bareme = int.tryParse(_bareme.text.trim());
+    final baremeValide = bareme != null && bareme >= 1 && bareme <= 1000;
     setState(() {
       _erreurNom = nom.isEmpty ? 'Le nom de la matière est obligatoire.' : null;
       _erreurCoefficient = coefficient == null
           ? 'Coefficient invalide (de 0,01 à 99,99 ; ex. 2 ou 2,5).'
           : null;
+      _erreurBareme =
+          baremeValide ? null : 'Barème invalide (entier de 1 à 1000 ; ex. 10, 20, 40, 100).';
     });
-    if (nom.isNotEmpty && coefficient != null) {
-      Navigator.of(context).pop(_SaisieMatiere(nom, coefficient));
+    if (nom.isNotEmpty && coefficient != null && baremeValide) {
+      Navigator.of(context).pop(
+        _SaisieMatiere(nom, coefficient, bareme, _facultative, _enseignantId),
+      );
     }
   }
 
@@ -614,24 +803,63 @@ class _DialogueMatiereState extends State<_DialogueMatiere> {
     return AlertDialog(
       title: Text(widget.existante == null ? 'Ajouter une matière' : 'Modifier la matière'),
       content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nom,
-              autofocus: true,
-              decoration: champ('Nom de la matière', erreur: _erreurNom),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _coefficient,
-              decoration: champ('Coefficient', erreur: _erreurCoefficient),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onSubmitted: (_) => _valider(),
-            ),
-          ],
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nom,
+                autofocus: true,
+                decoration: champ('Nom de la matière', erreur: _erreurNom),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _coefficient,
+                      decoration: champ('Coefficient', erreur: _erreurCoefficient),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _bareme,
+                      decoration: champ(
+                        'Note maximale',
+                        aide: 'Barème : 10, 20...',
+                        erreur: _erreurBareme,
+                      ),
+                      keyboardType: TextInputType.number,
+                      onSubmitted: (_) => _valider(),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _facultative,
+                onChanged: (v) => setState(() => _facultative = v ?? false),
+                title: const Text('Matière facultative'),
+                subtitle: const Text('Ne compte pas dans la moyenne générale.'),
+              ),
+              const SizedBox(height: 8),
+              _ChoixEnseignant(
+                libelle: 'Enseignant',
+                enseignants: widget.enseignants,
+                valeur: _enseignantId,
+                aucun: 'Aucun enseignant',
+                onChanged: (id) => setState(() => _enseignantId = id),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

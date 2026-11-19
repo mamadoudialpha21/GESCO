@@ -255,6 +255,7 @@ void main() {
 
     test('la date de sortie peut être choisie', () async {
       final id = await inscrire('M1');
+      horloge = DateTime(2026, 12, 1, 9);
       await eleves.enregistrerSortie(
         id,
         StatutInscription.abandon,

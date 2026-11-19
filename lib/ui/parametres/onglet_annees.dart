@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
+import '../../data/depots/annee_depot.dart';
 import '../../data/modeles_donnees.dart';
+import '../../domain/permissions.dart';
 import '../../domain/periodes.dart';
 import '../commun/chargeur.dart';
 import '../commun/composants.dart';
@@ -43,6 +45,71 @@ class OngletAnnees extends StatelessWidget {
     if (ok) await etat.charger();
   }
 
+  Future<void> _renommer(BuildContext context, AnneeScolaire annee) async {
+    final controleur = TextEditingController(text: annee.libelle);
+    final nouveau = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Renommer l\'année scolaire'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(
+            controller: controleur,
+            autofocus: true,
+            decoration: champ('Année scolaire', aide: 'Exemple : 2026-2027'),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controleur.text),
+            child: const Text('Renommer'),
+          ),
+        ],
+      ),
+    );
+    controleur.dispose();
+    if (nouveau == null || !context.mounted) return;
+    final ok = await executer(
+      context,
+      () => etat.services.annees.renommer(annee.id, nouveau),
+      succes: 'Année renommée.',
+    );
+    if (ok) await etat.charger();
+  }
+
+  Future<void> _archiver(BuildContext context, AnneeScolaire annee) async {
+    if (annee.archivee) {
+      final ok = await executer(
+        context,
+        () => etat.services.annees.archiver(annee.id, archivee: false),
+        succes: 'L\'année « ${annee.libelle} » est de nouveau modifiable.',
+      );
+      if (ok) await etat.charger();
+      return;
+    }
+    final oui = await confirmer(
+      context,
+      titre: 'Archiver l\'année scolaire',
+      message:
+          'Archiver l\'année « ${annee.libelle} » ? Plus aucune note, évaluation '
+          'ni inscription ne pourra y être modifiée, mais tout reste consultable. '
+          'Vous pourrez la rouvrir à tout moment.',
+      libelleConfirmer: 'Archiver',
+    );
+    if (!oui || !context.mounted) return;
+    final ok = await executer(
+      context,
+      () => etat.services.annees.archiver(annee.id),
+      succes: 'Année « ${annee.libelle} » archivée.',
+    );
+    if (ok) await etat.charger();
+  }
+
   Future<void> _supprimer(BuildContext context, AnneeScolaire annee) async {
     final oui = await confirmer(
       context,
@@ -64,10 +131,18 @@ class OngletAnnees extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Chargeur<List<AnneeScolaire>>(
+    final gerer = etat.peut(Permission.anneesGerer);
+    return Chargeur<_DonneesAnnees>(
       cle: etat.version,
-      charger: () => etat.services.annees.lister(),
-      builder: (context, annees) {
+      charger: () async {
+        final annees = await etat.services.annees.lister();
+        final effectifs = <int, EffectifsAnnee>{
+          for (final a in annees) a.id: await etat.services.annees.effectifs(a.id),
+        };
+        return _DonneesAnnees(annees, effectifs);
+      },
+      builder: (context, donnees) {
+        final annees = donnees.annees;
         return ListView(
           padding: const EdgeInsets.all(24),
           children: [
@@ -85,7 +160,7 @@ class OngletAnnees extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 FilledButton.icon(
-                  onPressed: () => _creer(context, annees),
+                  onPressed: gerer ? () => _creer(context, annees) : null,
                   icon: const Icon(Icons.add),
                   label: const Text('Nouvelle année'),
                 ),
@@ -127,6 +202,14 @@ class OngletAnnees extends StatelessWidget {
                           couleur: CouleursGesco.gris,
                           fond: CouleursGesco.grisClair,
                         ),
+                      if (annee.archivee) ...[
+                        const SizedBox(width: 8),
+                        const Etiquette(
+                          'Archivée',
+                          couleur: CouleursGesco.orange,
+                          fond: CouleursGesco.orangeClair,
+                        ),
+                      ],
                       if (annee.id == etat.anneeId) ...[
                         const SizedBox(width: 8),
                         const Etiquette(
@@ -137,7 +220,10 @@ class OngletAnnees extends StatelessWidget {
                       ],
                     ],
                   ),
-                  subtitle: Text('Créée le ${_dateCourte(annee.creeLe)}'),
+                  subtitle: Text(
+                    'Créée le ${_dateCourte(annee.creeLe)} · '
+                    '${_resumeEffectifs(donnees.effectifs[annee.id])}',
+                  ),
                   trailing: Wrap(
                     spacing: 8,
                     children: [
@@ -146,15 +232,25 @@ class OngletAnnees extends StatelessWidget {
                           onPressed: () => etat.choisirAnnee(annee.id),
                           child: const Text('Afficher'),
                         ),
+                      IconButton(
+                        tooltip: 'Renommer',
+                        onPressed: gerer ? () => _renommer(context, annee) : null,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
                       if (!annee.active)
                         OutlinedButton(
-                          onPressed: () => _activer(context, annee),
+                          onPressed: gerer ? () => _activer(context, annee) : null,
                           child: const Text('Rendre active'),
+                        ),
+                      if (!annee.active)
+                        OutlinedButton(
+                          onPressed: gerer ? () => _archiver(context, annee) : null,
+                          child: Text(annee.archivee ? 'Rouvrir' : 'Archiver'),
                         ),
                       if (!annee.active)
                         IconButton(
                           tooltip: 'Supprimer (année vide uniquement)',
-                          onPressed: () => _supprimer(context, annee),
+                          onPressed: gerer ? () => _supprimer(context, annee) : null,
                           icon: const Icon(
                             Icons.delete_outline,
                             color: CouleursGesco.rouge,
@@ -164,10 +260,56 @@ class OngletAnnees extends StatelessWidget {
                   ),
                 ),
               ),
+            if (annees.length > 1) ...[
+              const SizedBox(height: 16),
+              const TitreSection(
+                'Comparaison des années',
+                sousTitre: 'Effectifs de chaque année scolaire.',
+              ),
+              const SizedBox(height: 8),
+              Carte(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Année')),
+                      DataColumn(label: Text('Classes'), numeric: true),
+                      DataColumn(label: Text('Élèves'), numeric: true),
+                      DataColumn(label: Text('Filles'), numeric: true),
+                      DataColumn(label: Text('Garçons'), numeric: true),
+                      DataColumn(label: Text('Départs'), numeric: true),
+                      DataColumn(label: Text('Abandons'), numeric: true),
+                    ],
+                    rows: [
+                      for (final a in annees)
+                        if (donnees.effectifs[a.id] case final e?)
+                          DataRow(
+                            cells: [
+                              DataCell(Text(a.libelle)),
+                              DataCell(Text('${e.classes}')),
+                              DataCell(Text('${e.eleves}')),
+                              DataCell(Text('${e.filles}')),
+                              DataCell(Text('${e.garcons}')),
+                              DataCell(Text('${e.departs}')),
+                              DataCell(Text('${e.abandons}')),
+                            ],
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         );
       },
     );
+  }
+
+  static String _resumeEffectifs(EffectifsAnnee? e) {
+    if (e == null) return '';
+    final classes = e.classes > 1 ? '${e.classes} classes' : '${e.classes} classe';
+    final eleves = e.eleves > 1 ? '${e.eleves} élèves' : '${e.eleves} élève';
+    return '$classes, $eleves';
   }
 
   /// « 2026-10-01T08:00:00.000Z » -> « 01/10/2026 ».
@@ -177,6 +319,13 @@ class OngletAnnees extends StatelessWidget {
     if (morceaux.length != 3) return iso;
     return '${morceaux[2]}/${morceaux[1]}/${morceaux[0]}';
   }
+}
+
+class _DonneesAnnees {
+  const _DonneesAnnees(this.annees, this.effectifs);
+
+  final List<AnneeScolaire> annees;
+  final Map<int, EffectifsAnnee> effectifs;
 }
 
 class _DemandeAnnee {

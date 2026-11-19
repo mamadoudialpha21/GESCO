@@ -4,17 +4,25 @@ import '../../app/etat_app.dart';
 import '../../data/erreurs.dart';
 import '../../data/modeles_donnees.dart';
 import '../../domain/dates.dart';
+import '../../domain/permissions.dart';
 import '../commun/chargeur.dart';
 import '../theme.dart';
 
 /// Action demandée depuis la fiche (exécutée ensuite par la page).
-enum ActionFiche { modifier, supprimer }
+enum ActionFiche { modifier, supprimer, sortie, reprendre, transferer, archiver }
 
 class _Fiche {
-  const _Fiche({required this.eleve, required this.nbNotes});
+  const _Fiche({
+    required this.eleve,
+    required this.nbNotes,
+    required this.inscriptions,
+    required this.mouvements,
+  });
 
   final Eleve eleve;
   final int nbNotes;
+  final List<InscriptionHistorique> inscriptions;
+  final List<MouvementInscription> mouvements;
 }
 
 /// Fiche complète d'un élève inscrit, en lecture seule.
@@ -35,7 +43,17 @@ class DialogueFiche extends StatelessWidget {
     final eleve = await etat.services.eleves.obtenir(inscrit.eleveId);
     if (eleve == null) throw const ErreurGesco('Fiche élève introuvable.');
     final nbNotes = await etat.services.eleves.compterNotes(inscrit.inscriptionId);
-    return _Fiche(eleve: eleve, nbNotes: nbNotes);
+    final inscriptions = await etat.services.eleves.inscriptionsDeLEleve(inscrit.eleveId);
+    final mouvements = await etat.services.eleves.mouvements(
+      eleveId: inscrit.eleveId,
+      limite: 20,
+    );
+    return _Fiche(
+      eleve: eleve,
+      nbNotes: nbNotes,
+      inscriptions: inscriptions,
+      mouvements: mouvements,
+    );
   }
 
   @override
@@ -68,13 +86,49 @@ class DialogueFiche extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   TextButton.icon(
-                    onPressed: () => Navigator.of(context).pop(ActionFiche.supprimer),
+                    onPressed: etat.peut(Permission.elevesSupprimer)
+                        ? () => Navigator.of(context).pop(ActionFiche.supprimer)
+                        : null,
                     icon: const Icon(Icons.delete_outline),
                     label: const Text('Supprimer'),
                     style: TextButton.styleFrom(foregroundColor: CouleursGesco.rouge),
                   ),
+                  TextButton.icon(
+                    onPressed: etat.peut(Permission.elevesSupprimer)
+                        ? () => Navigator.of(context).pop(ActionFiche.archiver)
+                        : null,
+                    icon: Icon(
+                      inscrit.archive ? Icons.unarchive_outlined : Icons.archive_outlined,
+                    ),
+                    label: Text(inscrit.archive ? 'Désarchiver' : 'Archiver'),
+                  ),
+                  if (inscrit.actif) ...[
+                    OutlinedButton.icon(
+                      onPressed: etat.peut(Permission.elevesGerer)
+                          ? () => Navigator.of(context).pop(ActionFiche.transferer)
+                          : null,
+                      icon: const Icon(Icons.compare_arrows),
+                      label: const Text('Transférer'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: etat.peut(Permission.elevesGerer)
+                          ? () => Navigator.of(context).pop(ActionFiche.sortie)
+                          : null,
+                      icon: const Icon(Icons.exit_to_app),
+                      label: const Text('Départ / abandon'),
+                    ),
+                  ] else
+                    OutlinedButton.icon(
+                      onPressed: etat.peut(Permission.elevesGerer)
+                          ? () => Navigator.of(context).pop(ActionFiche.reprendre)
+                          : null,
+                      icon: const Icon(Icons.keyboard_return),
+                      label: const Text('Reprendre'),
+                    ),
                   OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(ActionFiche.modifier),
+                    onPressed: etat.peut(Permission.elevesGerer)
+                        ? () => Navigator.of(context).pop(ActionFiche.modifier)
+                        : null,
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text('Modifier'),
                   ),
@@ -160,15 +214,74 @@ class DialogueFiche extends StatelessWidget {
         _Ligne('Père', e.nomPere),
         _Ligne('Mère', e.nomMere),
         _Ligne('Contact du parent ou tuteur', e.contactParent),
+        _Ligne('Tuteur', e.nomTuteur),
+        _Ligne('Contact du tuteur', e.contactTuteur),
+        _Ligne('Téléphone de l\'élève', e.telephone),
         _Ligne('Adresse', e.adresse),
+        if (inscrit.statut != StatutInscription.inscrit)
+          _Ligne('Situation', _situation(fiche)),
+        if (e.archive) const _Ligne('Dossier', 'Archivé'),
         _Ligne(
           'Notes enregistrées cette année',
           fiche.nbNotes == 0
               ? 'Aucune'
               : '${fiche.nbNotes}',
         ),
+        const SizedBox(height: 20),
+        Text(
+          'Historique des inscriptions',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 6),
+        for (final i in fiche.inscriptions)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(_ligneInscription(i)),
+          ),
+        if (fiche.mouvements.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Mouvements récents', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          for (final m in fiche.mouvements)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(_libelleMouvement(m)),
+            ),
+        ],
       ],
     );
+  }
+
+  static String _ligneInscription(InscriptionHistorique i) {
+    final base = '${i.anneeLibelle} — ${i.classeNom}';
+    if (i.statut == StatutInscription.inscrit) return base;
+    final statut = i.statut.libelle.toLowerCase();
+    final date = i.dateSortie == null ? '' : ' le ${formaterDateFr(i.dateSortie)}';
+    return '$base ($statut$date)';
+  }
+
+  String _situation(_Fiche fiche) {
+    for (final i in fiche.inscriptions) {
+      if (i.inscriptionId != inscrit.inscriptionId) continue;
+      final date = i.dateSortie == null ? '' : ' le ${formaterDateFr(i.dateSortie)}';
+      final motif = i.motifSortie.isEmpty ? '' : ' — ${i.motifSortie}';
+      return '${i.statut.libelle}$date$motif';
+    }
+    return inscrit.statut.libelle;
+  }
+
+  static String _libelleMouvement(MouvementInscription m) {
+    final jour = m.date.length >= 10 ? formaterDateFr(m.date.substring(0, 10)) : m.date;
+    final classes = m.classeOrigineNom.isNotEmpty && m.classeDestinationNom.isNotEmpty
+        ? '${m.classeOrigineNom} → ${m.classeDestinationNom}'
+        : (m.classeDestinationNom.isNotEmpty ? m.classeDestinationNom : m.classeOrigineNom);
+    final morceaux = [
+      m.libelleType,
+      m.anneeLibelle,
+      classes,
+      if (m.motif.isNotEmpty) m.motif,
+    ].where((t) => t.isNotEmpty).join(' · ');
+    return '$jour — $morceaux';
   }
 
   static String _age(int ans) => ans > 1 ? '$ans ans' : '$ans an';

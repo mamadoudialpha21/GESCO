@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/etat_app.dart';
 import '../../data/erreurs.dart';
 import '../../data/modeles_donnees.dart';
+import '../../domain/permissions.dart';
 import '../../domain/dates.dart';
 import '../../domain/recherche.dart';
 import '../commun/chargeur.dart';
@@ -11,6 +12,7 @@ import '../commun/dialogues.dart';
 import '../theme.dart';
 import 'dialogue_eleve.dart';
 import 'dialogue_reinscription.dart';
+import 'dialogues_mouvements.dart';
 import 'fiche_eleve.dart';
 
 class _Donnees {
@@ -20,7 +22,7 @@ class _Donnees {
   final List<EleveInscrit> eleves;
 }
 
-enum _Action { fiche, modifier, supprimer }
+enum _Action { fiche, modifier, sortie, reprendre, transferer, archiver, supprimer }
 
 /// Inscriptions : liste des élèves de l'année scolaire sélectionnée, avec
 /// filtre par classe, recherche par nom ou matricule, et ajout, modification,
@@ -45,6 +47,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
 
   final TextEditingController _recherche = TextEditingController();
   int _classeFiltre = _toutes;
+  bool _archives = false;
 
   EtatApp get _etat => widget.etat;
 
@@ -58,8 +61,31 @@ class _PageInscriptionsState extends State<PageInscriptions> {
     final anneeId = _etat.anneeId;
     if (anneeId == null) return const _Donnees(classes: [], eleves: []);
     final classes = await _etat.services.classes.lister(anneeId);
-    final eleves = await _etat.services.eleves.lister(anneeId);
+    final eleves = await _etat.services.eleves.lister(
+      anneeId,
+      inclureArchives: _archives,
+    );
     return _Donnees(classes: classes, eleves: eleves);
+  }
+
+  /// Exécute [action] ; si la classe d'arrivée est pleine, demande
+  /// confirmation puis recommence en autorisant le dépassement.
+  Future<T> _avecCapacite<T>(Future<T> Function(bool depasser) action) async {
+    try {
+      return await action(false);
+    } on ErreurAConfirmer catch (e) {
+      if (e.sujet != 'capacite' || !mounted) rethrow;
+      final oui = await confirmer(
+        context,
+        titre: 'Classe pleine',
+        message: '${e.message}\n\nContinuer quand même ?',
+        libelleConfirmer: 'Continuer',
+      );
+      if (!oui) {
+        throw const ErreurGesco('Opération annulée : la classe est pleine.');
+      }
+      return action(true);
+    }
   }
 
   /// Début des matricules proposés : l'année de début, ex. « 2026 ».
@@ -90,10 +116,13 @@ class _PageInscriptionsState extends State<PageInscriptions> {
         prefixeMatricule: _prefixeMatricule(),
         classeInitiale: filtre == _toutes ? null : filtre,
         enregistrer: (eleve, classeId) async {
-          await _etat.services.eleves.inscrire(
-            eleve,
-            anneeId: anneeId,
-            classeId: classeId,
+          await _avecCapacite(
+            (depasser) => _etat.services.eleves.inscrire(
+              eleve,
+              anneeId: anneeId,
+              classeId: classeId,
+              depasserCapacite: depasser,
+            ),
           );
           _etat.donneesModifiees();
           if (mounted) {
@@ -132,10 +161,13 @@ class _PageInscriptionsState extends State<PageInscriptions> {
         eleve: eleve,
         nbNotes: nbNotes,
         enregistrer: (modifie, classeId) async {
-          await _etat.services.eleves.modifier(
-            modifie,
-            inscriptionId: inscrit.inscriptionId,
-            nouvelleClasseId: classeId == inscrit.classeId ? null : classeId,
+          await _avecCapacite(
+            (depasser) => _etat.services.eleves.modifier(
+              modifie,
+              inscriptionId: inscrit.inscriptionId,
+              nouvelleClasseId: classeId == inscrit.classeId ? null : classeId,
+              depasserCapacite: depasser,
+            ),
           );
           _etat.donneesModifiees();
           if (mounted) {
@@ -161,7 +193,159 @@ class _PageInscriptionsState extends State<PageInscriptions> {
         await _modifier(inscrit, donnees);
       case ActionFiche.supprimer:
         await _supprimer(inscrit);
+      case ActionFiche.sortie:
+        await _sortie(inscrit);
+      case ActionFiche.reprendre:
+        await _reprendre(inscrit);
+      case ActionFiche.transferer:
+        await _transferer(inscrit, donnees);
+      case ActionFiche.archiver:
+        await _archiver(inscrit);
     }
+  }
+
+  Future<void> _sortie(EleveInscrit inscrit) async {
+    final choix = await showDialog<ChoixSortie>(
+      context: context,
+      builder: (ctx) => DialogueSortie(nomEleve: inscrit.nomComplet),
+    );
+    if (choix == null || !mounted) return;
+    final ok = await executer(
+      context,
+      () => _etat.services.eleves.enregistrerSortie(
+        inscrit.inscriptionId,
+        choix.statut,
+        motif: choix.motif,
+        date: choix.date,
+      ),
+      succes: choix.statut == StatutInscription.depart
+          ? 'Le départ de ${inscrit.nomComplet} est enregistré.'
+          : 'L\'abandon de ${inscrit.nomComplet} est enregistré.',
+    );
+    if (ok) _etat.donneesModifiees();
+  }
+
+  Future<void> _reprendre(EleveInscrit inscrit) async {
+    final oui = await confirmer(
+      context,
+      titre: 'Reprendre l\'élève',
+      message:
+          'Remettre ${inscrit.nomComplet} dans la classe ${inscrit.classeNom} ? '
+          'Il sera de nouveau compté dans les effectifs et les classements.',
+      libelleConfirmer: 'Reprendre',
+    );
+    if (!oui || !mounted) return;
+    final ok = await executer(
+      context,
+      () => _avecCapacite(
+        (depasser) => _etat.services.eleves.reprendre(
+          inscrit.inscriptionId,
+          depasserCapacite: depasser,
+        ),
+      ),
+      succes: '${inscrit.nomComplet} suit de nouveau la classe ${inscrit.classeNom}.',
+    );
+    if (ok) _etat.donneesModifiees();
+  }
+
+  Future<void> _transferer(EleveInscrit inscrit, _Donnees donnees) async {
+    var nbNotes = 0;
+    final lu = await executer(context, () async {
+      nbNotes = await _etat.services.eleves.compterNotes(inscrit.inscriptionId);
+    });
+    if (!lu || !mounted) return;
+    final choix = await showDialog<ChoixTransfert>(
+      context: context,
+      builder: (ctx) => DialogueTransfert(
+        nomEleve: inscrit.nomComplet,
+        classeActuelleId: inscrit.classeId,
+        classes: donnees.classes,
+        nbNotes: nbNotes,
+      ),
+    );
+    if (choix == null || !mounted) return;
+
+    var annule = false;
+    ApercuTransfert? resultat;
+    final ok = await executer(context, () async {
+      var pertes = false;
+      var depasser = false;
+      while (true) {
+        try {
+          resultat = await _etat.services.eleves.transferer(
+            inscrit.inscriptionId,
+            choix.classeId,
+            motif: choix.motif,
+            confirmerPertes: pertes,
+            depasserCapacite: depasser,
+          );
+          return;
+        } on ErreurAConfirmer catch (e) {
+          if (!mounted) rethrow;
+          final oui = await confirmer(
+            context,
+            titre: e.sujet == 'pertes' ? 'Des notes seront supprimées' : 'Classe pleine',
+            message: '${e.message}\n\nContinuer quand même ?',
+            libelleConfirmer: e.sujet == 'pertes' ? 'Supprimer ces notes' : 'Continuer',
+            danger: e.sujet == 'pertes',
+          );
+          if (!oui) {
+            annule = true;
+            return;
+          }
+          if (e.sujet == 'pertes') {
+            pertes = true;
+          } else {
+            depasser = true;
+          }
+        }
+      }
+    });
+    if (!ok || annule || !mounted) return;
+    final r = resultat;
+    _etat.donneesModifiees();
+    afficherMessage(
+      context,
+      r == null || r.notesReprises == 0
+          ? '${inscrit.nomComplet} a changé de classe.'
+          : '${inscrit.nomComplet} a changé de classe : '
+              '${r.notesReprises} note${r.notesReprises > 1 ? 's' : ''} '
+              'reportée${r.notesReprises > 1 ? 's' : ''}.',
+    );
+  }
+
+  Future<void> _archiver(EleveInscrit inscrit) async {
+    final archive = !inscrit.archive;
+    if (archive) {
+      final oui = await confirmer(
+        context,
+        titre: 'Archiver le dossier',
+        message:
+            'Archiver le dossier de ${inscrit.nomComplet} ? Il disparaîtra des listes '
+            'courantes, des classements et des statistiques, mais toutes ses '
+            'données sont conservées. Vous pourrez le désarchiver.',
+        libelleConfirmer: 'Archiver',
+      );
+      if (!oui || !mounted) return;
+    }
+    final ok = await executer(
+      context,
+      () => _etat.services.eleves.archiver(inscrit.eleveId, archive: archive),
+      succes: archive
+          ? 'Le dossier de ${inscrit.nomComplet} est archivé.'
+          : 'Le dossier de ${inscrit.nomComplet} est de nouveau actif.',
+    );
+    if (ok) _etat.donneesModifiees();
+  }
+
+  Future<void> _voirMouvements() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => DialogueMouvements(
+        etat: _etat,
+        titre: 'Mouvements d\'inscription — ${_etat.anneeCourante?.libelle ?? ''}',
+      ),
+    );
   }
 
   Future<void> _supprimer(EleveInscrit inscrit) async {
@@ -258,10 +442,13 @@ class _PageInscriptionsState extends State<PageInscriptions> {
     final termine = await executer(context, () async {
       try {
         for (final id in choix.eleveIds) {
-          await _etat.services.eleves.inscrireExistant(
-            eleveId: id,
-            anneeId: anneeId,
-            classeId: choix.classeId,
+          await _avecCapacite(
+            (depasser) => _etat.services.eleves.inscrireExistant(
+              eleveId: id,
+              anneeId: anneeId,
+              classeId: choix.classeId,
+              depasserCapacite: depasser,
+            ),
           );
           faits++;
         }
@@ -286,7 +473,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
   @override
   Widget build(BuildContext context) {
     return Chargeur<_Donnees>(
-      cle: (_etat.anneeId, _etat.version),
+      cle: (_etat.anneeId, _etat.version, _archives),
       charger: _charger,
       builder: _contenu,
     );
@@ -323,6 +510,7 @@ class _PageInscriptionsState extends State<PageInscriptions> {
           e,
     ];
     final recherche = _recherche.text.trim().isNotEmpty;
+    final gerer = _etat.peut(Permission.elevesGerer);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,15 +573,27 @@ class _PageInscriptionsState extends State<PageInscriptions> {
               ),
               FilledButton.icon(
                 key: const Key('bouton_inscrire'),
-                onPressed: () => _inscrire(donnees, filtre),
+                onPressed: gerer ? () => _inscrire(donnees, filtre) : null,
                 icon: const Icon(Icons.person_add_alt_1),
                 label: const Text('Inscrire un élève'),
               ),
               OutlinedButton.icon(
                 key: const Key('bouton_reinscrire'),
-                onPressed: () => _reinscrire(donnees, filtre),
+                onPressed: gerer ? () => _reinscrire(donnees, filtre) : null,
                 icon: const Icon(Icons.history_edu_outlined),
                 label: const Text('Réinscrire…'),
+              ),
+              OutlinedButton.icon(
+                key: const Key('bouton_mouvements'),
+                onPressed: _voirMouvements,
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('Mouvements'),
+              ),
+              FilterChip(
+                key: const Key('filtre_archives'),
+                label: const Text('Dossiers archivés'),
+                selected: _archives,
+                onSelected: (v) => setState(() => _archives = v),
               ),
             ],
           ),
@@ -402,7 +602,8 @@ class _PageInscriptionsState extends State<PageInscriptions> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
           child: Text(
-            _decompte(affiches.length, total, recherche),
+            _decompte(affiches.length, total, recherche) +
+                _resumeSorties(donnees.eleves, filtre),
             key: const Key('decompte_eleves'),
             style: const TextStyle(
               color: CouleursGesco.gris,
@@ -428,6 +629,21 @@ class _PageInscriptionsState extends State<PageInscriptions> {
         ),
       ],
     );
+  }
+
+  String _resumeSorties(List<EleveInscrit> eleves, int filtre) {
+    var departs = 0;
+    var abandons = 0;
+    for (final e in eleves) {
+      if (filtre != _toutes && e.classeId != filtre) continue;
+      if (e.statut == StatutInscription.depart) departs++;
+      if (e.statut == StatutInscription.abandon) abandons++;
+    }
+    final morceaux = <String>[
+      if (departs > 0) '$departs parti${departs > 1 ? 's' : ''}',
+      if (abandons > 0) '$abandons abandon${abandons > 1 ? 's' : ''}',
+    ];
+    return morceaux.isEmpty ? '' : ' (dont ${morceaux.join(', ')})';
   }
 
   String _decompte(int affiches, int total, bool recherche) {
@@ -469,6 +685,18 @@ class _PageInscriptionsState extends State<PageInscriptions> {
                 fond: CouleursGesco.bleuClair,
               ),
               if (naissance != null) Text(naissance),
+              if (e.statut != StatutInscription.inscrit)
+                Etiquette(
+                  e.statut.libelle,
+                  couleur: CouleursGesco.orange,
+                  fond: CouleursGesco.orangeClair,
+                ),
+              if (e.archive)
+                const Etiquette(
+                  'Archivé',
+                  couleur: CouleursGesco.gris,
+                  fond: CouleursGesco.grisClair,
+                ),
             ],
           ),
         ),
@@ -480,36 +708,88 @@ class _PageInscriptionsState extends State<PageInscriptions> {
                 _voirFiche(e, donnees);
               case _Action.modifier:
                 _modifier(e, donnees);
+              case _Action.sortie:
+                _sortie(e);
+              case _Action.reprendre:
+                _reprendre(e);
+              case _Action.transferer:
+                _transferer(e, donnees);
+              case _Action.archiver:
+                _archiver(e);
               case _Action.supprimer:
                 _supprimer(e);
             }
           },
-          itemBuilder: (context) => const [
-            PopupMenuItem<_Action>(
-              value: _Action.fiche,
-              child: ListTile(
-                leading: Icon(Icons.badge_outlined),
-                title: Text('Voir la fiche'),
-                contentPadding: EdgeInsets.zero,
+          itemBuilder: (context) {
+            final gerer = _etat.peut(Permission.elevesGerer);
+            final supprimer = _etat.peut(Permission.elevesSupprimer);
+            return [
+              const PopupMenuItem<_Action>(
+                value: _Action.fiche,
+                child: ListTile(
+                  leading: Icon(Icons.badge_outlined),
+                  title: Text('Voir la fiche'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-            ),
-            PopupMenuItem<_Action>(
-              value: _Action.modifier,
-              child: ListTile(
-                leading: Icon(Icons.edit_outlined),
-                title: Text('Modifier'),
-                contentPadding: EdgeInsets.zero,
+              PopupMenuItem<_Action>(
+                value: _Action.modifier,
+                enabled: gerer,
+                child: const ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Modifier'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-            ),
-            PopupMenuItem<_Action>(
-              value: _Action.supprimer,
-              child: ListTile(
-                leading: Icon(Icons.delete_outline, color: CouleursGesco.rouge),
-                title: Text('Supprimer', style: TextStyle(color: CouleursGesco.rouge)),
-                contentPadding: EdgeInsets.zero,
+              if (e.actif) ...[
+                PopupMenuItem<_Action>(
+                  value: _Action.transferer,
+                  enabled: gerer,
+                  child: const ListTile(
+                    leading: Icon(Icons.compare_arrows),
+                    title: Text('Transférer dans une autre classe'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem<_Action>(
+                  value: _Action.sortie,
+                  enabled: gerer,
+                  child: const ListTile(
+                    leading: Icon(Icons.exit_to_app),
+                    title: Text('Départ ou abandon'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ] else
+                PopupMenuItem<_Action>(
+                  value: _Action.reprendre,
+                  enabled: gerer,
+                  child: const ListTile(
+                    leading: Icon(Icons.keyboard_return),
+                    title: Text('Reprendre dans la classe'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              PopupMenuItem<_Action>(
+                value: _Action.archiver,
+                enabled: supprimer,
+                child: ListTile(
+                  leading: Icon(e.archive ? Icons.unarchive_outlined : Icons.archive_outlined),
+                  title: Text(e.archive ? 'Désarchiver le dossier' : 'Archiver le dossier'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-            ),
-          ],
+              PopupMenuItem<_Action>(
+                value: _Action.supprimer,
+                enabled: supprimer,
+                child: const ListTile(
+                  leading: Icon(Icons.delete_outline, color: CouleursGesco.rouge),
+                  title: Text('Supprimer', style: TextStyle(color: CouleursGesco.rouge)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ];
+          },
         ),
       ),
     );

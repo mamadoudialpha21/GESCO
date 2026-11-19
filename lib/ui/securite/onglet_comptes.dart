@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
+import '../../data/modeles_donnees.dart';
 import '../../data/modeles_securite.dart';
 import '../../domain/permissions.dart';
 import '../commun/chargeur.dart';
@@ -30,9 +31,11 @@ class _OngletComptesState extends State<OngletComptes> {
   }
 
   Future<void> _creer() async {
+    final enseignants = await _enseignants();
+    if (!mounted) return;
     final demande = await showDialog<_DemandeCompte>(
       context: context,
-      builder: (ctx) => const _DialogueCompte(),
+      builder: (ctx) => _DialogueCompte(enseignants: enseignants),
     );
     if (demande == null || !mounted) return;
     final ok = await executer(
@@ -43,6 +46,7 @@ class _OngletComptesState extends State<OngletComptes> {
           nomComplet: demande.nomComplet,
           role: demande.role,
           motDePasse: demande.motDePasse!,
+          enseignantId: demande.enseignantId,
           permissions: demande.permissions,
         );
       },
@@ -52,10 +56,23 @@ class _OngletComptesState extends State<OngletComptes> {
     if (ok) await _recharger();
   }
 
+  /// Enseignants proposés pour lier un compte de saisie (liste vide si la
+  /// lecture échoue : le compte reste créable sans lien).
+  Future<List<Enseignant>> _enseignants() async {
+    try {
+      final liste = await etat.services.enseignants.lister();
+      return [for (final r in liste) r.enseignant];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> _modifier(Utilisateur u) async {
+    final enseignants = await _enseignants();
+    if (!mounted) return;
     final demande = await showDialog<_DemandeCompte>(
       context: context,
-      builder: (ctx) => _DialogueCompte(utilisateur: u),
+      builder: (ctx) => _DialogueCompte(utilisateur: u, enseignants: enseignants),
     );
     if (demande == null || !mounted) return;
     final ok = await executer(
@@ -65,7 +82,7 @@ class _OngletComptesState extends State<OngletComptes> {
           u.id,
           nomComplet: demande.nomComplet,
           role: demande.role,
-          enseignantId: u.enseignantId,
+          enseignantId: demande.enseignantId,
           permissions: demande.permissions,
         );
         // Si c'est son propre compte, la session reprend les nouveaux droits.
@@ -354,21 +371,24 @@ class _DemandeCompte {
     required this.nomComplet,
     required this.role,
     required this.permissions,
+    this.enseignantId,
     this.motDePasse,
   });
 
   final String identifiant;
   final String nomComplet;
   final RoleUtilisateur role;
+  final int? enseignantId;
   final Set<Permission>? permissions;
   final String? motDePasse;
 }
 
 /// Création ou modification d'un compte.
 class _DialogueCompte extends StatefulWidget {
-  const _DialogueCompte({this.utilisateur});
+  const _DialogueCompte({this.utilisateur, this.enseignants = const []});
 
   final Utilisateur? utilisateur;
+  final List<Enseignant> enseignants;
 
   @override
   State<_DialogueCompte> createState() => _DialogueCompteState();
@@ -381,6 +401,7 @@ class _DialogueCompteState extends State<_DialogueCompte> {
   late RoleUtilisateur _role;
   late bool _personnaliser;
   late Set<Permission> _permissions;
+  int? _enseignantId;
   String? _erreur;
 
   bool get _creation => widget.utilisateur == null;
@@ -392,6 +413,7 @@ class _DialogueCompteState extends State<_DialogueCompte> {
     _identifiant = TextEditingController(text: u?.identifiant ?? '');
     _nom = TextEditingController(text: u?.nomComplet ?? '');
     _role = u?.role ?? RoleUtilisateur.consultation;
+    _enseignantId = u?.enseignantId;
     _personnaliser = u?.permissionsPersonnalisees != null;
     _permissions = {...?u?.permissionsPersonnalisees};
     if (!_personnaliser) _permissions = {...permissionsDuRole(_role)};
@@ -428,6 +450,7 @@ class _DialogueCompteState extends State<_DialogueCompte> {
         nomComplet: _nom.text,
         role: _role,
         motDePasse: _creation ? _motDePasse.text : null,
+        enseignantId: _role == RoleUtilisateur.saisie ? _enseignantId : null,
         permissions: _personnaliser && _role != RoleUtilisateur.administrateur
             ? _permissions
             : null,
@@ -484,6 +507,41 @@ class _DialogueCompteState extends State<_DialogueCompte> {
                   ),
                 ),
               ),
+              if (_role == RoleUtilisateur.saisie) ...[
+                const SizedBox(height: 12),
+                InputDecorator(
+                  decoration: champ(
+                    'Enseignant lié',
+                    aide: _enseignantId == null
+                        ? 'Aucun lien : ce compte peut saisir les notes de toutes '
+                            'les matières.'
+                        : 'Ce compte ne pourra saisir que les notes des matières '
+                            'confiées à cet enseignant.',
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int?>(
+                      key: const Key('compte_enseignant'),
+                      isExpanded: true,
+                      isDense: true,
+                      value: _enseignantId,
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Aucun (toutes les matières)'),
+                        ),
+                        for (final e in widget.enseignants)
+                          DropdownMenuItem<int?>(
+                            value: e.id,
+                            child: Text(
+                              e.actif ? e.nomComplet : '${e.nomComplet} (inactif)',
+                            ),
+                          ),
+                      ],
+                      onChanged: (id) => setState(() => _enseignantId = id),
+                    ),
+                  ),
+                ),
+              ],
               if (_creation) ...[
                 const SizedBox(height: 12),
                 TextField(

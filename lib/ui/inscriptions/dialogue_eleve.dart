@@ -68,6 +68,9 @@ class _DialogueEleveState extends State<DialogueEleve> {
   final TextEditingController _mere = TextEditingController();
   final TextEditingController _contact = TextEditingController();
   final TextEditingController _adresse = TextEditingController();
+  final TextEditingController _telephone = TextEditingController();
+  final TextEditingController _tuteur = TextEditingController();
+  final TextEditingController _contactTuteur = TextEditingController();
   final FocusNode _focusNom = FocusNode();
 
   late final List<String> _matricules = List<String>.of(widget.matricules);
@@ -98,6 +101,9 @@ class _DialogueEleveState extends State<DialogueEleve> {
       _mere.text = e.nomMere;
       _contact.text = e.contactParent;
       _adresse.text = e.adresse;
+      _telephone.text = e.telephone;
+      _tuteur.text = e.nomTuteur;
+      _contactTuteur.text = e.contactTuteur;
       _sexe = e.sexe;
       _photo = e.photo;
     } else {
@@ -121,6 +127,9 @@ class _DialogueEleveState extends State<DialogueEleve> {
     _mere.dispose();
     _contact.dispose();
     _adresse.dispose();
+    _telephone.dispose();
+    _tuteur.dispose();
+    _contactTuteur.dispose();
     _focusNom.dispose();
     super.dispose();
   }
@@ -207,6 +216,10 @@ class _DialogueEleveState extends State<DialogueEleve> {
       contactParent: _contact.text.trim(),
       adresse: _adresse.text.trim(),
       photo: _photo,
+      telephone: _telephone.text.trim(),
+      nomTuteur: _tuteur.text.trim(),
+      contactTuteur: _contactTuteur.text.trim(),
+      archive: widget.eleve?.archive ?? false,
     );
     final erreurs = erreursEleve(eleve, maintenant: DateTime.now());
     setState(() {
@@ -226,6 +239,9 @@ class _DialogueEleveState extends State<DialogueEleve> {
     _mere.clear();
     _contact.clear();
     _adresse.clear();
+    _telephone.clear();
+    _tuteur.clear();
+    _contactTuteur.clear();
     _sexe = null;
     _photo = null;
     _erreurDate = null;
@@ -525,6 +541,32 @@ class _DialogueEleveState extends State<DialogueEleve> {
                         controller: _adresse,
                         decoration: champ('Adresse'),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    _paire(
+                      TextField(
+                        key: const Key('champ_telephone'),
+                        controller: _telephone,
+                        decoration: champ('Téléphone de l\'élève'),
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      TextField(
+                        key: const Key('champ_tuteur'),
+                        controller: _tuteur,
+                        decoration: champ('Nom du tuteur (si différent des parents)'),
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _paire(
+                      TextField(
+                        key: const Key('champ_contact_tuteur'),
+                        controller: _contactTuteur,
+                        decoration: champ('Contact du tuteur'),
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox.shrink(),
                     ),
                     const SizedBox(height: 8),
                     const Text(
