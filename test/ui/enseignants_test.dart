@@ -232,7 +232,7 @@ void main() {
     Future<void> attendre(WidgetTester tester, Finder f) async {
       for (var i = 0; i < 60; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
         if (f.evaluate().isNotEmpty) return;
       }
       fail('Élément introuvable : $f');
@@ -378,6 +378,9 @@ void main() {
       await tester.tap(find.byKey(const Key('bouton_valider_classes_confiees')));
       await tester.pump();
       await attendre(tester, find.textContaining('1 classe'));
+      // Laisse disparaître le message de succès : un nouveau message ne
+      // s'affiche qu'après la sortie du précédent.
+      await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
 
       final confiees = await tester.runAsync(
@@ -390,15 +393,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Supprimer').last);
       await tester.pump();
-      await attendre(tester, find.byType(SnackBar));
-      final textes = [
-        for (final t in tester.widgetList<Text>(find.byType(Text))) t.data ?? '',
-      ];
-      expect(
-        find.textContaining('Impossible de supprimer'),
-        findsOneWidget,
-        reason: textes.join(' | '),
-      );
+      await attendre(tester, find.textContaining('Impossible de supprimer'));
       expect(await tester.runAsync(() => gdb.db.query('enseignant')), hasLength(1));
       await fin(tester);
     });
