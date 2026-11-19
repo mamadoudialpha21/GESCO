@@ -8,6 +8,7 @@ import '../../data/depots/note_depot.dart';
 import '../../data/erreurs.dart';
 import '../../data/modeles_donnees.dart';
 import '../../domain/arrondi.dart';
+import '../../domain/bareme.dart';
 import '../../domain/modeles.dart';
 import '../../domain/moteur_resultats.dart';
 import '../../domain/periodes.dart';
@@ -25,6 +26,15 @@ typedef EnregistrerNote = Future<void> Function({
 });
 
 enum _Deplacement { bas, haut, droite, gauche }
+
+/// Note chiffrée (centièmes) telle qu'on l'affiche sur le barème [bareme] de
+/// la matière : la note d'origine si elle a été saisie sur ce barème, sinon la
+/// note sur 20 ramenée sur ce barème.
+int _centiemesAffiches(Saisie s, int bareme) {
+  if (s.brut != null && s.bareme == bareme) return s.brut!;
+  final sur20 = s.centiemes!;
+  return bareme == baremeParDefaut ? sur20 : convertirDepuis20(sur20, bareme);
+}
 
 enum _Statut { repos, enCours, enregistre, erreur }
 
@@ -109,6 +119,8 @@ class GrilleNotes extends StatefulWidget {
     required this.saisies,
     required this.config,
     required this.periode,
+    this.casesEvaluees = const {},
+    this.moisVerrouilles = const {},
   });
 
   final EnregistrerNote enregistrer;
@@ -117,6 +129,13 @@ class GrilleNotes extends StatefulWidget {
   final SaisiesClasse saisies;
   final ConfigResultats config;
   final Periode periode;
+
+  /// Couples (matière, mois) dont la note du mois est calculée d'après les
+  /// évaluations : la saisie directe y est interdite.
+  final Set<(int, int)> casesEvaluees;
+
+  /// Mois verrouillés pour la classe : aucune case n'y est modifiable.
+  final Set<int> moisVerrouilles;
 
   @override
   State<GrilleNotes> createState() => _GrilleNotesState();
@@ -168,7 +187,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
       final l = _ligne;
       final c = _colonne;
       if (l != null && c != null && ancien.periode.saisissable) {
-        final lecture = lireNoteSaisie(_texteCourant);
+        final lecture = _lire(c, _texteCourant);
         if (!lecture.estInvalide) {
           _appliquerLecture(l, c, ancien.periode.numero, lecture);
         }
@@ -187,7 +206,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     final l = _ligne;
     final c = _colonne;
     if (l != null && c != null && widget.periode.saisissable) {
-      final lecture = lireNoteSaisie(_texteCourant);
+      final lecture = _lire(c, _texteCourant);
       if (!lecture.estInvalide) {
         final e = widget.eleves[l];
         final m = widget.matieres[c];
@@ -214,9 +233,28 @@ class _GrilleNotesState extends State<GrilleNotes> {
 
   // ----------------------------------------------------------- Saisie
 
-  static bool _memeSaisie(Saisie? a, Saisie? b) {
-    if (a == null || b == null) return a == null && b == null;
-    return a.etat == b.etat && a.centiemes == b.centiemes;
+  static bool _memeSaisie(Saisie? a, Saisie? b) => a == b;
+
+  /// Contenu d'une case tel qu'on le tape : sur le barème de la matière.
+  String _texteCase(int ligne, int colonne) {
+    final s = _saisieDe(ligne, colonne);
+    if (s == null || s.etat != EtatNote.saisie) return texteSaisie(s);
+    return formaterCentiemes(_centiemesAffiches(s, widget.matieres[colonne].bareme));
+  }
+
+  /// Lit ce qui a été tapé dans la colonne [colonne], sur le barème de sa
+  /// matière.
+  LectureNote _lire(int colonne, String texte) =>
+      lireNoteSaisie(texte, bareme: widget.matieres[colonne].bareme);
+
+  /// Vrai si les cases de cette colonne se saisissent : un mois verrouillé ou
+  /// une matière dont la note vient des évaluations est en lecture seule.
+  bool _colonneEditable(int colonne) {
+    if (colonne < 0 || colonne >= widget.matieres.length) return false;
+    final p = widget.periode;
+    if (!p.saisissable) return false;
+    if (widget.moisVerrouilles.contains(p.numero)) return false;
+    return !widget.casesEvaluees.contains((widget.matieres[colonne].id, p.numero));
   }
 
   void _ouvrir(int ligne, int colonne) {
@@ -225,7 +263,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
       _cloreCourante(_texteCourant);
       _ligne = ligne;
       _colonne = colonne;
-      _texteCourant = texteSaisie(_saisieDe(ligne, colonne));
+      _texteCourant = _texteCase(ligne, colonne);
       _erreurSaisie = null;
     });
   }
@@ -265,7 +303,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     final l = _ligne;
     final c = _colonne;
     if (l == null || c == null) return;
-    final lecture = lireNoteSaisie(_texteCourant);
+    final lecture = _lire(c, _texteCourant);
     if (lecture.estInvalide) return; // l'erreur n'est signalée qu'à la validation
     setState(() => _appliquerLecture(l, c, widget.periode.numero, lecture));
   }
@@ -330,7 +368,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     final c = _colonne;
     if (l == null || c == null) return true;
     _minuterie?.cancel();
-    final lecture = lireNoteSaisie(texte);
+    final lecture = _lire(c, texte);
     if (lecture.estInvalide) {
       setState(() {
         _erreurSaisie = lecture.erreur;
@@ -350,7 +388,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
       _ligne = cible?.$1;
       _colonne = cible?.$2;
       if (cible != null) {
-        _texteCourant = texteSaisie(_saisieDe(cible.$1, cible.$2));
+        _texteCourant = _texteCase(cible.$1, cible.$2);
       }
     });
     return true;
@@ -375,7 +413,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     final c = _colonne;
     if (l == null || c == null) return;
     _minuterie?.cancel();
-    final lecture = lireNoteSaisie(texte);
+    final lecture = _lire(c, texte);
     if (lecture.estInvalide) {
       _statut = _Statut.erreur;
       _message = 'Note non enregistrée : ${lecture.erreur}';
@@ -399,6 +437,20 @@ class _GrilleNotesState extends State<GrilleNotes> {
   }
 
   (int, int)? _cibleApres(int ligne, int colonne, _Deplacement deplacement) {
+    var cible = _cibleBrute(ligne, colonne, deplacement);
+    // Saute les colonnes en lecture seule (note calculée d'après les
+    // évaluations) ; la boucle est bornée par le nombre de cases.
+    var essais = widget.eleves.length * widget.matieres.length + 1;
+    while (cible != null && !_colonneEditable(cible.$2) && essais-- > 0) {
+      if (deplacement == _Deplacement.bas || deplacement == _Deplacement.haut) {
+        return null;
+      }
+      cible = _cibleBrute(cible.$1, cible.$2, deplacement);
+    }
+    return cible != null && _colonneEditable(cible.$2) ? cible : null;
+  }
+
+  (int, int)? _cibleBrute(int ligne, int colonne, _Deplacement deplacement) {
     final lignes = widget.eleves.length;
     final colonnes = widget.matieres.length;
     switch (deplacement) {
@@ -426,7 +478,8 @@ class _GrilleNotesState extends State<GrilleNotes> {
           colonnes.add(_Colonne(
             titre: m.nom,
             largeur: largeurColonneMatiere(m.nom),
-            sousTitre: 'coef ${formaterCoefficient(m.coefficient)}',
+            sousTitre: 'coef ${formaterCoefficient(m.coefficient)}'
+                '${m.bareme == baremeParDefaut ? '' : ' · /${m.bareme}'}',
             matiereId: m.id,
             valeur: (d, r) => d.saisie(m.id, p.numero)?.centiemes,
           ));
@@ -755,9 +808,12 @@ class _GrilleNotesState extends State<GrilleNotes> {
     ResultatEleve r,
     Map<int, int> effectifsRang,
   ) {
-    final editable = col.matiereId != null && widget.periode.saisissable;
+    final saisissable = col.matiereId != null && widget.periode.saisissable;
+    final editable = saisissable && _colonneEditable(c);
     Widget contenu;
-    if (editable) {
+    if (saisissable && !editable) {
+      contenu = _caseLecture(c, d.saisie(col.matiereId!, widget.periode.numero));
+    } else if (editable) {
       if (_ligne == l && _colonne == c) {
         contenu = _ChampNote(
           key: const Key('champ_note'),
@@ -807,7 +863,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     } else if (s.etat == EtatNote.saisie) {
       final v = s.centiemes!;
       contenu = Text(
-        formaterCentiemes(v),
+        formaterCentiemes(_centiemesAffiches(s, widget.matieres[c].bareme)),
         style: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 14.5,
@@ -838,6 +894,74 @@ class _GrilleNotesState extends State<GrilleNotes> {
           width: double.infinity,
           height: double.infinity,
           child: Center(child: contenu),
+        ),
+      ),
+    );
+  }
+
+  /// Case non modifiable d'une matière : mois verrouillé ou note calculée
+  /// d'après les évaluations (affichée sur le barème de la matière).
+  Widget _caseLecture(int c, Saisie? s) {
+    final m = widget.matieres[c];
+    final mois = widget.periode.numero;
+    final evaluee = widget.casesEvaluees.contains((m.id, mois));
+    final verrouille = widget.moisVerrouilles.contains(mois);
+    Widget contenu;
+    if (s == null) {
+      contenu = const Text('—', style: TextStyle(color: CouleursGesco.gris));
+    } else if (s.etat == EtatNote.saisie) {
+      final v = s.centiemes!;
+      contenu = Text(
+        formaterCentiemes(_centiemesAffiches(s, m.bareme)),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14.5,
+          color: couleurNiveau(widget.config.niveau(v)),
+        ),
+      );
+    } else {
+      contenu = Text(
+        texteSaisie(s),
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+          color: CouleursGesco.gris,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+    final explication = evaluee
+        ? 'Note calculée d\'après les évaluations de ${m.nom} : modifiez les '
+            'notes des évaluations.'
+        : verrouille
+            ? '${libelleMois(mois)} est verrouillé : déverrouillez le mois pour '
+                'modifier les notes.'
+            : '';
+    return Tooltip(
+      message: explication,
+      child: Container(
+        key: Key('case_lecture_${m.id}'),
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: evaluee ? CouleursGesco.bleuClair : CouleursGesco.grisClair,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Center(child: contenu),
+            if (evaluee || verrouille)
+              Positioned(
+                top: 2,
+                right: 4,
+                child: Icon(
+                  evaluee ? Icons.functions : Icons.lock_outline,
+                  size: 11,
+                  color: CouleursGesco.gris,
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -47,6 +47,21 @@ int convertirDepuis20(int centiemes20, int bareme) {
   return divisionArrondie(centiemes20 * bareme, 20);
 }
 
+/// Convertit une note (centièmes) d'un barème [de] vers un barème [vers],
+/// arrondie au centième, demi vers le haut : 7 sur 10 -> 28 sur 40.
+int convertirEntreBaremes(int centiemes, {required int de, required int vers}) {
+  if (!baremeValide(de)) {
+    throw ArgumentError.value(de, 'de', 'doit être entre 1 et $baremeMax');
+  }
+  if (!baremeValide(vers)) {
+    throw ArgumentError.value(vers, 'vers', 'doit être entre 1 et $baremeMax');
+  }
+  if (centiemes < 0 || centiemes > centiemesMax(de)) {
+    throw ArgumentError.value(centiemes, 'centiemes', 'doit être entre 0 et ${centiemesMax(de)}');
+  }
+  return divisionArrondie(centiemes * vers, de);
+}
+
 /// Lit une note tapée sur [bareme] (« 7 », « 7,5 », « 31.25 ») et la
 /// convertit en centièmes. Null si le texte est invalide, a plus de deux
 /// décimales ou dépasse le barème.

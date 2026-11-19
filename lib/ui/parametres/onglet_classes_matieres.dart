@@ -167,9 +167,15 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
   // ------------------------------------------------------------ Matières
 
   Future<void> _ajouterMatiere(int classeId, _Donnees donnees) async {
+    // Le barème proposé est celui des paramètres de notation.
+    final bareme = await _etat.services.parametres.baremeDefaut();
+    if (!mounted) return;
     final saisie = await showDialog<_SaisieMatiere>(
       context: context,
-      builder: (ctx) => _DialogueMatiere(enseignants: donnees.enseignants),
+      builder: (ctx) => _DialogueMatiere(
+        enseignants: donnees.enseignants,
+        baremeInitial: bareme,
+      ),
     );
     if (saisie == null || !mounted) return;
     final ok = await executer(
@@ -738,10 +744,17 @@ class _SaisieMatiere {
 }
 
 class _DialogueMatiere extends StatefulWidget {
-  const _DialogueMatiere({this.existante, this.enseignants = const []});
+  const _DialogueMatiere({
+    this.existante,
+    this.enseignants = const [],
+    this.baremeInitial = 20,
+  });
 
   final MatiereClasse? existante;
   final List<Enseignant> enseignants;
+
+  /// Barème proposé pour une nouvelle matière.
+  final int baremeInitial;
 
   @override
   State<_DialogueMatiere> createState() => _DialogueMatiereState();
@@ -765,7 +778,7 @@ class _DialogueMatiereState extends State<_DialogueMatiere> {
     _coefficient = TextEditingController(
       text: m == null ? '1' : formaterCoefficient(m.coefficient),
     );
-    _bareme = TextEditingController(text: '${m?.bareme ?? 20}');
+    _bareme = TextEditingController(text: '${m?.bareme ?? widget.baremeInitial}');
     _facultative = m?.facultative ?? false;
     _enseignantId = m?.enseignantId;
   }
