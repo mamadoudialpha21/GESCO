@@ -112,22 +112,19 @@ class _PageNotesState extends State<PageNotes> {
               segments: [
                 const ButtonSegment(
                   value: _Vue.saisie,
-                  key: Key('vue_saisie'),
                   icon: Icon(Icons.grid_on, size: 18),
-                  label: Text('Notes du mois'),
+                  label: Text('Notes du mois', key: Key('vue_saisie')),
                 ),
                 const ButtonSegment(
                   value: _Vue.evaluations,
-                  key: Key('vue_evaluations'),
                   icon: Icon(Icons.assignment_outlined, size: 18),
-                  label: Text('Évaluations'),
+                  label: Text('Évaluations', key: Key('vue_evaluations')),
                 ),
                 if (historique)
                   const ButtonSegment(
                     value: _Vue.historique,
-                    key: Key('vue_historique'),
                     icon: Icon(Icons.history, size: 18),
-                    label: Text('Historique'),
+                    label: Text('Historique', key: Key('vue_historique')),
                   ),
               ],
               selected: {vue},

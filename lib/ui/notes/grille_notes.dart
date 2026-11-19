@@ -812,7 +812,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     final editable = saisissable && _colonneEditable(c);
     Widget contenu;
     if (saisissable && !editable) {
-      contenu = _caseLecture(c, d.saisie(col.matiereId!, widget.periode.numero));
+      contenu = _caseLecture(l, c, d.saisie(col.matiereId!, widget.periode.numero));
     } else if (editable) {
       if (_ligne == l && _colonne == c) {
         contenu = _ChampNote(
@@ -901,7 +901,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
 
   /// Case non modifiable d'une matière : mois verrouillé ou note calculée
   /// d'après les évaluations (affichée sur le barème de la matière).
-  Widget _caseLecture(int c, Saisie? s) {
+  Widget _caseLecture(int l, int c, Saisie? s) {
     final m = widget.matieres[c];
     final mois = widget.periode.numero;
     final evaluee = widget.casesEvaluees.contains((m.id, mois));
@@ -940,7 +940,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
     return Tooltip(
       message: explication,
       child: Container(
-        key: Key('case_lecture_${m.id}'),
+        key: Key('case_lecture_${l}_$c'),
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(

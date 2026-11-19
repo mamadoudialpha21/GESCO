@@ -76,6 +76,12 @@ class Banc {
   }
 }
 
+/// Maths sur 40, français sur 20.
+const List<MatiereClasse> matieresMixtes = [
+  MatiereClasse(id: 1, classeId: 10, nom: 'Maths', coefficient: 400, ordre: 1, bareme: 40),
+  MatiereClasse(id: 2, classeId: 10, nom: 'Français', coefficient: 300, ordre: 2),
+];
+
 SaisiesClasse saisiesDepart() => {
       1: {
         1: {10: const Saisie.valeur(1400)},
@@ -88,6 +94,9 @@ Future<Banc> afficher(
   SaisiesClasse? saisies,
   Banc? banc,
   double largeur = 1400,
+  List<MatiereClasse> matieresAffichees = matieres,
+  Set<(int, int)> casesEvaluees = const {},
+  Set<int> moisVerrouilles = const {},
 }) async {
   tester.view.physicalSize = Size(largeur, 900);
   tester.view.devicePixelRatio = 1.0;
@@ -99,11 +108,13 @@ Future<Banc> afficher(
       home: Scaffold(
         body: GrilleNotes(
           enregistrer: b.enregistrer,
-          matieres: matieres,
+          matieres: matieresAffichees,
           eleves: eleves,
           saisies: saisies ?? saisiesDepart(),
           config: ConfigResultats.defaut,
           periode: periode,
+          casesEvaluees: casesEvaluees,
+          moisVerrouilles: moisVerrouilles,
         ),
       ),
     ),
@@ -513,6 +524,128 @@ void main() {
       expect(periodesAffichees.last.libelle, 'Année');
       expect(periodesAffichees.where((p) => p.saisissable), hasLength(9));
       expect(periodesAffichees.toSet(), hasLength(13));
+    });
+  });
+
+  group('barèmes, évaluations et mois verrouillés', () {
+    Finder lecture(int ligne, int colonne) =>
+        find.byKey(Key('case_lecture_${ligne}_$colonne'));
+
+    testWidgets('une matière sur 40 : en-tête, saisie sur 40, conversion sur 20',
+        (tester) async {
+      final banc = await afficher(tester, matieresAffichees: matieresMixtes);
+
+      expect(find.text('coef 4 · /40'), findsOneWidget);
+      expect(find.text('coef 3'), findsOneWidget);
+
+      await ouvrir(tester, 1, 0);
+      await taper(tester, '31');
+      await entree(tester);
+
+      final a = banc.appels.single;
+      expect([a.inscriptionId, a.matiereId, a.mois], [2, 1, 10]);
+      expect(a.saisie!.brut, 3100);
+      expect(a.saisie!.bareme, 40);
+      expect(a.saisie!.centiemes, 1550, reason: '31 sur 40 = 15,50 sur 20');
+      // La case affiche la note telle qu'elle a été tapée (sur 40).
+      expect(find.descendant(of: caseDe(1, 0), matching: find.text('31,00')),
+          findsOneWidget);
+      // La moyenne de l'élève est calculée sur 20.
+      expect(texteDe(tester, const Key('moyenne_1')), '15,50');
+    });
+
+    testWidgets('une note qui dépasse le barème de la matière est refusée',
+        (tester) async {
+      final banc = await afficher(tester, matieresAffichees: matieresMixtes);
+      await ouvrir(tester, 1, 0);
+      await taper(tester, '41');
+      await entree(tester);
+
+      expect(banc.appels, isEmpty);
+      expect(find.textContaining('dépasse 40'), findsOneWidget);
+      // 25 est valide sur 40 (alors qu'elle dépasserait 20).
+      await taper(tester, '25');
+      await entree(tester);
+      expect(banc.appels.single.saisie!.centiemes, 1250);
+    });
+
+    testWidgets('une note déjà enregistrée sur 40 se réaffiche sur 40', (tester) async {
+      await afficher(
+        tester,
+        matieresAffichees: matieresMixtes,
+        saisies: {
+          1: {
+            1: {10: const Saisie.surBareme(3100, 40)},
+          },
+        },
+      );
+      expect(find.descendant(of: caseDe(0, 0), matching: find.text('31,00')),
+          findsOneWidget);
+      expect(texteDe(tester, const Key('moyenne_0')), '15,50');
+    });
+
+    testWidgets('note calculée d\'après les évaluations : case en lecture seule',
+        (tester) async {
+      final banc = await afficher(
+        tester,
+        casesEvaluees: {(1, 10)},
+        saisies: {
+          2: {
+            1: {10: const Saisie.valeur(1450)},
+          },
+        },
+      );
+      // Maths (colonne 0) : cases en lecture seule, note affichée.
+      expect(lecture(0, 0), findsOneWidget);
+      expect(lecture(1, 0), findsOneWidget);
+      expect(find.descendant(of: lecture(1, 0), matching: find.text('14,50')),
+          findsOneWidget);
+      await tester.tap(lecture(0, 0));
+      await tester.pump();
+      expect(champ, findsNothing, reason: 'la case ne s\'ouvre pas');
+      expect(banc.appels, isEmpty);
+
+      // Français (colonne 1) reste modifiable.
+      await ouvrir(tester, 0, 1);
+      expect(champ, findsOneWidget);
+    });
+
+    testWidgets('Tab saute la colonne calculée d\'après les évaluations',
+        (tester) async {
+      // Français (matière 2) est calculé d'après ses évaluations.
+      final banc = await afficher(tester, casesEvaluees: {(2, 10)});
+      await ouvrir(tester, 0, 0);
+      await taper(tester, '15');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.pump();
+      // La case suivante est celle de l'élève suivant en maths (1, 0).
+      expect(champ, findsOneWidget);
+      expect(caseDe(1, 0), findsNothing, reason: 'la case 1,0 est ouverte');
+      expect(caseDe(0, 0), findsOneWidget);
+      expect(banc.appels.single.saisie!.centiemes, 1500);
+    });
+
+    testWidgets('mois verrouillé : plus aucune case modifiable', (tester) async {
+      final banc = await afficher(tester, moisVerrouilles: {10});
+      expect(lecture(0, 0), findsOneWidget);
+      expect(lecture(0, 1), findsOneWidget);
+      expect(caseDe(0, 0), findsNothing);
+      await tester.tap(lecture(1, 1));
+      await tester.pump();
+      expect(champ, findsNothing);
+      expect(banc.appels, isEmpty);
+    });
+
+    testWidgets('un autre mois que le mois verrouillé reste modifiable', (tester) async {
+      await afficher(
+        tester,
+        periode: const Periode.mois(11),
+        moisVerrouilles: {10},
+      );
+      expect(lecture(0, 0), findsNothing);
+      await ouvrir(tester, 0, 0);
+      expect(champ, findsOneWidget);
     });
   });
 }
