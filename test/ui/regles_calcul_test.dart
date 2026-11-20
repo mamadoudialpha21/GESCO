@@ -94,10 +94,13 @@ void main() {
           .avecRegles(absenceEgaleZero: true);
       await etat.services.configs.enregistrer(etat.anneeId!, config);
     });
-    etat.donneesModifiees();
-    await attendre(tester, find.byWidgetPredicate(
-      (w) => w is SwitchListTile && w.key == const Key('option_absence_zero') && w.value,
-    ));
+    // On rouvre l'onglet : les règles enregistrées sont relues de la base.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: OngletResultats(etat: etat))),
+    );
+    await attendre(tester, find.byKey(const Key('option_absence_zero')));
+    expect(actif(tester, 'option_absence_zero'), isTrue);
     expect(actif(tester, 'option_periode_complete'), isFalse);
 
     // « Valeurs par défaut » remet les règles à leur état d'origine (sans enregistrer).
