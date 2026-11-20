@@ -22,6 +22,9 @@ dependencies:
   # Sélecteur de fichier (logo, photos, sauvegardes) : boîte de dialogue
   # native du système, fonctionne hors ligne.
   file_picker: ^8.1.2
+  # Génération des documents PDF (bulletins, classements) : bibliothèque
+  # pure Dart, sans réseau.
+  pdf: ^3.11.1
 
 dev_dependencies:
   flutter_test:
@@ -30,3 +33,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Polices DejaVu embarquées dans les PDF (accents français inclus).
+    - assets/fonts/
