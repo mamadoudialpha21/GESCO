@@ -334,7 +334,7 @@ class _Synthese extends StatelessWidget {
 
 // ------------------------------------------------------------ Tableaux
 
-const double _largeurMin = 900;
+const double _largeurMin = 1000;
 
 /// Cellule de largeur fixe (ou souple avec [souple]).
 Widget _cellule(Widget enfant, {double largeur = 100, bool souple = false}) {
@@ -389,7 +389,7 @@ class _TableauEleves extends StatelessWidget {
   Widget build(BuildContext context) {
     return _tableau([
       _enTete([
-        _cellule(_titre('Rang'), largeur: 110),
+        _cellule(_titre('Rang'), largeur: 150),
         _cellule(_titre('Matricule'), largeur: 110),
         _cellule(_titre('Élève'), souple: true),
         _cellule(_titre(avecDecision ? 'Moyenne' : 'Note'), largeur: 90),
@@ -474,7 +474,7 @@ class _LigneEleve extends StatelessWidget {
                 ],
               ],
             ),
-            largeur: 110,
+            largeur: 150,
           ),
           _cellule(Text(e.matricule, overflow: TextOverflow.ellipsis), largeur: 110),
           _cellule(

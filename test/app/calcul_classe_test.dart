@@ -177,4 +177,60 @@ void main() {
       expect(comparerClasses(const [], novembre), isEmpty);
     });
   });
+
+  group('synthetiserEtablissement', () {
+    SyntheseEtablissement synthese({int nbMeilleurs = 5}) => synthetiserEtablissement(
+          [classeA(), classeAvecMoyenne(2, 1200)],
+          calendrier: Calendrier.defaut,
+          config: ConfigResultats.defaut,
+          nbMeilleurs: nbMeilleurs,
+        );
+
+    test('moyenne générale et taux de réussite : élèves évalués et actifs', () {
+      final s = synthese();
+      // 1600 + 1600 + 1000 (classe A, sans le parti) + 1200 (classe 2).
+      expect(s.nbEvalues, 4);
+      expect(s.moyenneGenerale, 1350);
+      expect(s.nbAdmis, 4);
+      expect(s.tauxReussiteCentiemes, 10000);
+      expect(s.aDesNotes, isTrue);
+    });
+
+    test('moyennes par période et par mois de chaque classe', () {
+      final s = synthese();
+      final a = s.classes.first;
+      expect(a.classe.classe.nom, '10e A');
+      expect(a.moyennesPeriodes, [1400, null, null]);
+      expect(a.moyennesMensuelles, [null, 1400, null, null, null, null, null, null, null]);
+      expect(a.annee.moyenneClasse, 1400);
+      expect(a.aDesNotes, isTrue);
+    });
+
+    test('palmarès : ex æquo ensemble, élève parti absent', () {
+      final m = synthese().meilleurs;
+      expect([for (final e in m) e.eleve.nom], ['BARRY', 'CAMARA', 'ELEVE2', 'DIALLO']);
+      expect([for (final e in m) e.rang], [1, 1, 3, 4]);
+      expect([for (final e in m) e.moyenne], [1600, 1600, 1200, 1000]);
+      expect(m.first.classeNom, '10e A');
+      expect(m.any((e) => e.eleve.nom == 'SOW'), isFalse);
+    });
+
+    test('le palmarès se limite au rang demandé', () {
+      final m = synthese(nbMeilleurs: 2).meilleurs;
+      expect([for (final e in m) e.eleve.nom], ['BARRY', 'CAMARA']);
+    });
+
+    test('sans aucune note : pas de moyenne ni de palmarès', () {
+      final s = synthetiserEtablissement(
+        [classeAvecMoyenne(1, null)],
+        calendrier: Calendrier.defaut,
+        config: ConfigResultats.defaut,
+      );
+      expect(s.nbEvalues, 0);
+      expect(s.moyenneGenerale, isNull);
+      expect(s.tauxReussiteCentiemes, isNull);
+      expect(s.meilleurs, isEmpty);
+      expect(s.aDesNotes, isFalse);
+    });
+  });
 }

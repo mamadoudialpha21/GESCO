@@ -140,6 +140,9 @@ class _CoquilleState extends State<Coquille> {
           allerAuxParametres: () => _aller('parametres'),
           allerAuxInscriptions: () => _aller('inscriptions'),
           allerAuxNotes: () => _aller('notes'),
+          allerAuxResultats: widget.etat.peut(Permission.resultatsVoir)
+              ? () => _aller('resultats')
+              : null,
         ),
     };
   }

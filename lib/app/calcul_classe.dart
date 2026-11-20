@@ -7,9 +7,11 @@
 library;
 
 import '../data/modeles_donnees.dart';
+import '../domain/arrondi.dart';
 import '../domain/calendrier.dart';
 import '../domain/modeles.dart';
 import '../domain/moteur_resultats.dart';
+import '../domain/periodes.dart';
 import '../domain/statistiques.dart';
 import 'services.dart';
 
@@ -258,4 +260,163 @@ List<ResumeClasse> comparerClasses(List<CalculClasse> calculs, Portee portee) {
     return a.compareTo(b);
   });
   return [for (final i in indices) resumes[i]];
+}
+
+// ------------------------------------------------- Synthèse de l'établissement
+
+/// Un élève du palmarès de l'établissement.
+class ElevePalmares {
+  const ElevePalmares({
+    required this.eleve,
+    required this.classeNom,
+    required this.moyenne,
+    required this.rang,
+  });
+
+  final EleveInscrit eleve;
+  final String classeNom;
+  final int moyenne;
+
+  /// Rang dans l'établissement (ex æquo possibles : 1, 1, 3).
+  final int rang;
+}
+
+/// Chiffres d'une classe pour le tableau de bord.
+class SyntheseClasse {
+  const SyntheseClasse({
+    required this.classe,
+    required this.moyennesPeriodes,
+    required this.moyennesMensuelles,
+    required this.annee,
+  });
+
+  final ClasseResume classe;
+
+  /// Moyenne de la classe pour chaque période du calendrier (même ordre que
+  /// [Calendrier.periodes]) ; null si personne n'est évalué.
+  final List<int?> moyennesPeriodes;
+
+  /// Moyenne de la classe pour chaque mois, d'octobre à juin ([moisScolaires]).
+  final List<int?> moyennesMensuelles;
+
+  /// Statistiques de l'année entière (moyenne, taux de réussite...).
+  final StatsClasse annee;
+
+  /// Vrai si au moins un mois a une moyenne (la classe a des notes).
+  bool get aDesNotes => moyennesMensuelles.any((m) => m != null);
+}
+
+/// Résultats de tout l'établissement sur l'année, pour le tableau de bord.
+class SyntheseEtablissement {
+  const SyntheseEtablissement({
+    required this.calendrier,
+    required this.config,
+    required this.classes,
+    required this.moyenneGenerale,
+    required this.tauxReussiteCentiemes,
+    required this.nbEvalues,
+    required this.nbAdmis,
+    required this.meilleurs,
+  });
+
+  final Calendrier calendrier;
+  final ConfigResultats config;
+  final List<SyntheseClasse> classes;
+
+  /// Moyenne de tous les élèves évalués (année entière), null s'il n'y en a pas.
+  final int? moyenneGenerale;
+
+  /// Part des élèves évalués qui atteignent le seuil d'admission, en
+  /// centièmes de pourcent (8333 = 83,33 %).
+  final int? tauxReussiteCentiemes;
+  final int nbEvalues;
+  final int nbAdmis;
+
+  /// Les meilleurs élèves de l'année (rang 5 au plus, ex æquo compris).
+  final List<ElevePalmares> meilleurs;
+
+  bool get aDesNotes => nbEvalues > 0 || classes.any((c) => c.aDesNotes);
+}
+
+/// Calcule la synthèse de l'établissement.
+///
+/// [nbMeilleurs] : on garde les élèves dont le rang est au plus [nbMeilleurs]
+/// (les ex æquo restent ensemble), dans la limite de deux fois ce nombre.
+SyntheseEtablissement synthetiserEtablissement(
+  List<CalculClasse> calculs, {
+  required Calendrier calendrier,
+  required ConfigResultats config,
+  int nbMeilleurs = 5,
+}) {
+  const annee = Portee.annee();
+  final classes = <SyntheseClasse>[];
+  final candidats = <(EleveInscrit, String, int)>[];
+  var somme = 0;
+  var nbEvalues = 0;
+  var nbAdmis = 0;
+
+  for (final c in calculs) {
+    final resultats = c.resultats(annee);
+    classes.add(SyntheseClasse(
+      classe: c.classe,
+      moyennesPeriodes: [
+        for (final p in calendrier.periodes) c.stats(Portee.periode(p)).moyenneClasse,
+      ],
+      moyennesMensuelles: [
+        for (final m in moisScolaires) c.stats(Portee.mois(m)).moyenneClasse,
+      ],
+      annee: calculerStats(eleves: c.donnees, resultats: resultats, config: config),
+    ));
+    final actifs = {
+      for (final d in c.donnees)
+        if (d.actif) d.inscriptionId,
+    };
+    final parInscription = {for (final e in c.eleves) e.inscriptionId: e};
+    for (final r in resultats) {
+      final m = r.moyenne;
+      if (m == null || !actifs.contains(r.inscriptionId)) continue;
+      somme += m;
+      nbEvalues++;
+      if (m >= config.seuilAdmission) nbAdmis++;
+      candidats.add((parInscription[r.inscriptionId]!, c.classe.classe.nom, m));
+    }
+  }
+
+  // Palmarès : tri par moyenne décroissante, puis par nom (ordre stable).
+  candidats.sort((a, b) {
+    final c = b.$3.compareTo(a.$3);
+    if (c != 0) return c;
+    final n = a.$1.nom.toLowerCase().compareTo(b.$1.nom.toLowerCase());
+    if (n != 0) return n;
+    return a.$1.prenom.toLowerCase().compareTo(b.$1.prenom.toLowerCase());
+  });
+  final meilleurs = <ElevePalmares>[];
+  int? precedente;
+  var rang = 0;
+  for (var i = 0; i < candidats.length; i++) {
+    final (eleve, classeNom, moyenne) = candidats[i];
+    if (moyenne != precedente) {
+      rang = i + 1;
+      precedente = moyenne;
+    }
+    if (rang > nbMeilleurs || meilleurs.length >= 2 * nbMeilleurs) break;
+    meilleurs.add(ElevePalmares(
+      eleve: eleve,
+      classeNom: classeNom,
+      moyenne: moyenne,
+      rang: rang,
+    ));
+  }
+
+  return SyntheseEtablissement(
+    calendrier: calendrier,
+    config: config,
+    classes: classes,
+    moyenneGenerale: nbEvalues == 0 ? null : divisionArrondie(somme, nbEvalues),
+    tauxReussiteCentiemes:
+        nbEvalues == 0 ? null : divisionArrondie(nbAdmis * 10000, nbEvalues),
+    nbEvalues: nbEvalues,
+    nbAdmis: nbAdmis,
+    meilleurs: meilleurs,
+  );
 }

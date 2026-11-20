@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../app/calcul_classe.dart';
 import '../app/etat_app.dart';
 import '../data/modeles_donnees.dart';
+import '../domain/permissions.dart';
 import 'commun/chargeur.dart';
 import 'commun/composants.dart';
+import 'tableau_de_bord_resultats.dart';
 import 'theme.dart';
 
 class _Resume {
@@ -11,6 +14,7 @@ class _Resume {
     required this.classes,
     required this.eleves,
     required this.nbNotes,
+    this.synthese,
   });
 
   final List<ClasseResume> classes;
@@ -18,6 +22,10 @@ class _Resume {
 
   /// Cases de notes renseignées (notes, absences et dispenses) de l'année.
   final int nbNotes;
+
+  /// Résultats de l'année ; null s'il n'y a pas encore de notes ou si le
+  /// compte n'a pas le droit de les voir.
+  final SyntheseEtablissement? synthese;
 
   int get nbClasses => classes.length;
   int get nbMatieres => classes.fold(0, (somme, c) => somme + c.nbMatieres);
@@ -43,12 +51,16 @@ class PageTableauDeBord extends StatelessWidget {
     required this.allerAuxParametres,
     required this.allerAuxInscriptions,
     required this.allerAuxNotes,
+    this.allerAuxResultats,
   });
 
   final EtatApp etat;
   final VoidCallback allerAuxParametres;
   final VoidCallback allerAuxInscriptions;
   final VoidCallback allerAuxNotes;
+
+  /// Ouvre la page Résultats (le bouton n'apparaît pas si null).
+  final VoidCallback? allerAuxResultats;
 
   @override
   Widget build(BuildContext context) {
@@ -59,10 +71,31 @@ class PageTableauDeBord extends StatelessWidget {
         if (anneeId == null) {
           return const _Resume(classes: [], eleves: [], nbNotes: 0);
         }
+        final services = etat.services;
+        final classes = await services.classes.lister(anneeId);
+        final nbNotes = await services.notes.compterAnnee(anneeId);
+        SyntheseEtablissement? synthese;
+        if (nbNotes > 0 && classes.isNotEmpty && etat.peut(Permission.resultatsVoir)) {
+          final config = await services.configs.lire(anneeId);
+          final calendrier = await services.calendriers.lire(anneeId);
+          final calculs = await chargerToutesLesClasses(
+            services,
+            anneeId,
+            classes: classes,
+            config: config,
+            calendrier: calendrier,
+          );
+          synthese = synthetiserEtablissement(
+            calculs,
+            calendrier: calendrier,
+            config: config,
+          );
+        }
         return _Resume(
-          classes: await etat.services.classes.lister(anneeId),
-          eleves: await etat.services.eleves.lister(anneeId),
-          nbNotes: await etat.services.notes.compterAnnee(anneeId),
+          classes: classes,
+          eleves: await services.eleves.lister(anneeId),
+          nbNotes: nbNotes,
+          synthese: synthese,
         );
       },
       builder: (context, resume) => _contenu(context, resume),
@@ -167,6 +200,15 @@ class PageTableauDeBord extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
+                if (resume.synthese != null && resume.synthese!.aDesNotes) ...[
+                  const SizedBox(height: 8),
+                  SectionResultats(
+                    synthese: resume.synthese!,
+                    large: large,
+                    allerAuxResultats: allerAuxResultats,
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 if (large)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
