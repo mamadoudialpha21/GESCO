@@ -15,8 +15,9 @@ import '../commun/choix.dart';
 import '../commun/composants.dart';
 import '../notes/choix_classe.dart';
 import '../theme.dart';
+import 'vue_appreciations.dart';
 
-enum _Vue { eleves, classes }
+enum _Vue { eleves, classes, appreciations }
 
 class _DonneesResultats {
   const _DonneesResultats({
@@ -150,11 +151,15 @@ class _PageResultatsState extends State<PageResultats> {
           segments: const [
             ButtonSegment(value: _Vue.eleves, label: Text('Élèves', key: Key('vue_eleves'))),
             ButtonSegment(value: _Vue.classes, label: Text('Classes', key: Key('vue_classes'))),
+            ButtonSegment(
+              value: _Vue.appreciations,
+              label: Text('Appréciations', key: Key('vue_appreciations')),
+            ),
           ],
           selected: {_vue},
           onSelectionChanged: (s) => setState(() => _vue = s.first),
         ),
-        if (_vue == _Vue.eleves)
+        if (_vue != _Vue.classes)
           ChoixClasse(
             classes: [for (final c in d.calculs) c.classe],
             classeId: calcul.classe.classe.id,
@@ -204,8 +209,15 @@ class _PageResultatsState extends State<PageResultats> {
         const SizedBox(height: 16),
         if (_vue == _Vue.eleves)
           ..._vueEleves(calcul, portee, matiereId)
+        else if (_vue == _Vue.classes)
+          ..._vueClasses(d.calculs, portee)
         else
-          ..._vueClasses(d.calculs, portee),
+          VueAppreciations(
+            etat: etat,
+            calcul: calcul,
+            portee: portee,
+            periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
+          ),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import '../data/controle.dart';
 import '../data/depots/annee_depot.dart';
+import '../data/depots/appreciation_depot.dart';
 import '../data/depots/calendrier_depot.dart';
 import '../data/depots/classe_depot.dart';
 import '../data/depots/config_resultats_depot.dart';
@@ -47,6 +48,7 @@ class Services {
         eleves = EleveDepot(gdb.db, controle: controle),
         enseignants = EnseignantDepot(gdb.db, controle: controle),
         notes = NoteDepot(gdb.db, controle: controle),
+        appreciations = AppreciationDepot(gdb.db, controle: controle),
         parametres = ParametreDepot(gdb.db, controle: controle),
         utilisateurs = UtilisateurDepot(
           gdb.db,
@@ -69,6 +71,7 @@ class Services {
   final EleveDepot eleves;
   final EnseignantDepot enseignants;
   final NoteDepot notes;
+  final AppreciationDepot appreciations;
   late final EvaluationDepot evaluations;
   final ParametreDepot parametres;
   final UtilisateurDepot utilisateurs;
