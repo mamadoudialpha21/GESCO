@@ -29,8 +29,10 @@ class OngletResultats extends StatelessWidget {
       charger: () => etat.services.configs.lire(anneeId),
       builder: (context, config) => _EditeurResultats(
         // Nouvelle clé = nouvel éditeur quand on change d'année ou après
-        // un enregistrement : les champs repartent de la base.
-        key: ValueKey('resultats-$anneeId-${etat.version}'),
+        // un enregistrement : les champs repartent de la base. La clé suit les
+        // données réellement relues, pas le compteur de version (sinon
+        // l'éditeur reprendrait les anciennes valeurs pendant la relecture).
+        key: ValueKey('resultats-$anneeId-${identityHashCode(config)}'),
         etat: etat,
         anneeId: anneeId,
         config: config,

@@ -117,6 +117,16 @@ void main() {
     await enregistrer(tester);
     final c = await attendreCalendrier(tester, (c) => c.type == TypePeriodes.semestres);
     expect(c, Calendrier.semestres);
+
+    // Après l'enregistrement, l'écran affiche ce qui vient d'être enregistré
+    // (et non les anciennes valeurs relues avant la fin de l'écriture).
+    for (var i = 0; i < 8; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(nom(tester, 'periode_nom_0'), 'Semestre 1');
+    expect(nom(tester, 'periode_nom_1'), 'Semestre 2');
+    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
     await fin(tester);
   });
 

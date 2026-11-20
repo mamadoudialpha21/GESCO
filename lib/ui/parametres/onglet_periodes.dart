@@ -30,7 +30,10 @@ class OngletPeriodes extends StatelessWidget {
       cle: (anneeId, etat.version),
       charger: () => etat.services.calendriers.lire(anneeId),
       builder: (context, calendrier) => _EditeurPeriodes(
-        key: ValueKey('periodes-$anneeId-${etat.version}'),
+        // La clé suit les données réellement chargées (et non le compteur de
+        // version) : après un enregistrement, l'éditeur repart de la base dès
+        // que la relecture est terminée, jamais des anciennes valeurs.
+        key: ValueKey('periodes-$anneeId-${identityHashCode(calendrier)}'),
         etat: etat,
         anneeId: anneeId,
         calendrier: calendrier,
