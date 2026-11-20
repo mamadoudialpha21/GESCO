@@ -9,6 +9,7 @@ import 'commun/composants.dart';
 import 'inscriptions/page_inscriptions.dart';
 import 'notes/page_notes.dart';
 import 'parametres/page_parametres.dart';
+import 'resultats/page_resultats.dart';
 import 'securite/page_securite.dart';
 import 'tableau_de_bord.dart';
 import 'theme.dart';
@@ -68,6 +69,14 @@ const List<_Destination> _destinations = [
     permission: Permission.notesVoir,
   ),
   _Destination(
+    cle: 'resultats',
+    titre: 'Résultats',
+    libelleCourt: 'Résultats',
+    icone: Icons.emoji_events_outlined,
+    iconeActive: Icons.emoji_events,
+    permission: Permission.resultatsVoir,
+  ),
+  _Destination(
     cle: 'parametres',
     titre: 'Paramètres',
     libelleCourt: 'Paramètres',
@@ -119,6 +128,10 @@ class _CoquilleState extends State<Coquille> {
           etat: etat,
           allerAuxParametres: () => _aller('parametres'),
           allerAuxInscriptions: () => _aller('inscriptions'),
+        ),
+      'resultats' => PageResultats(
+          etat: etat,
+          allerAuxParametres: () => _aller('parametres'),
         ),
       'parametres' => PageParametres(etat: etat),
       'securite' => PageSecurite(etat: etat),

@@ -212,7 +212,8 @@ class MoteurResultats {
     );
   }
 
-  /// Classement des élèves dans une matière sur une étendue.
+  /// Classement des élèves dans une matière sur une étendue (élèves actifs
+  /// seulement : un élève parti garde sa note mais n'a pas de rang).
   List<ResultatMatiere> classementMatiere(int matiereId, Portee portee) {
     if (!matieres.any((m) => m.id == matiereId)) {
       throw ArgumentError.value(matiereId, 'matiereId', 'matière inconnue');
@@ -220,7 +221,12 @@ class MoteurResultats {
     final notes = <int, int?>{
       for (final e in eleves) e.inscriptionId: noteMatiere(e, matiereId, portee),
     };
-    final rangs = calculerRangs(notes);
+    // Comme pour la moyenne générale, les élèves partis ou ayant abandonné ne
+    // sont pas classés.
+    final rangs = calculerRangs({
+      for (final e in eleves)
+        if (e.actif) e.inscriptionId: notes[e.inscriptionId],
+    });
     return [
       for (final e in eleves)
         ResultatMatiere(

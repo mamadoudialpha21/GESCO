@@ -205,6 +205,13 @@ void main() {
       final r = moteur([a, egal, c]).resultatsMois(10);
       expect(r.map((x) => x.rang), [1, null, 2]);
     });
+
+    test('le classement par matière les ignore aussi', () {
+      final r = moteur([a, parti, c]).classementMatiere(1, const Portee.mois(10));
+      expect(r.map((x) => x.note), [1500, 1600, 1400],
+          reason: 'sa note reste visible');
+      expect(r.map((x) => x.rang), [1, null, 2]);
+    });
   });
 
   group('configuration enregistrée', () {
