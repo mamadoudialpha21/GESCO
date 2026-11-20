@@ -213,7 +213,7 @@ class _PageResultatsState extends State<PageResultats> {
           ..._vueClasses(d.calculs, portee)
         else
           VueAppreciations(
-            etat: etat,
+            etat: widget.etat,
             calcul: calcul,
             portee: portee,
             periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
