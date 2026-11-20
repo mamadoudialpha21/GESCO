@@ -5,8 +5,11 @@ library;
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:gesco/documents/elements_pdf.dart';
 import 'package:gesco/documents/modele_bulletin.dart';
+import 'package:gesco/documents/modele_classement.dart';
 import 'package:gesco/documents/polices_pdf.dart';
+import 'package:gesco/domain/statistiques.dart';
 
 /// Les polices lues dans le dépôt (le test s'exécute depuis la racine).
 PolicesPdf polices() {
@@ -144,3 +147,85 @@ Bulletin bulletinExemple({
     dateEdition: DateTime(2026, 11, 20),
   );
 }
+
+const _prenoms = ['Aminata', 'Mamadou', 'Fatoumata', 'Ibrahima', 'Mariama', 'Alpha', 'Kadiatou', 'Sékou'];
+const _noms = ['DIALLO', 'BARRY', 'CAMARA', 'SOW', 'BAH', 'TOURÉ', 'KEÏTA', 'SYLLA', 'CONDÉ', 'BANGOURA'];
+
+/// Classement d'exemple de [nbEleves] élèves ; les élèves classés d'abord (avec
+/// quelques ex æquo), puis un élève parti et un élève sans note.
+DocumentClassement classementExemple({
+  int nbEleves = 25,
+  bool annuel = false,
+  bool avecStats = true,
+  bool parMatiere = false,
+  bool avecImages = true,
+}) {
+  final lignes = <LigneDocClassement>[];
+  for (var i = 0; i < nbEleves; i++) {
+    final moyenne = 1800 - (i * 41) % 1500;
+    final rang = i < 2 ? 1 : i;
+    lignes.add(LigneDocClassement(
+      nom: '${_noms[i % _noms.length]} ${_prenoms[i % _prenoms.length]}',
+      matricule: '2026-${(i + 1).toString().padLeft(4, '0')}',
+      rang: rang,
+      exAequo: i < 2,
+      moyenne: moyenne,
+      mention: moyenne >= 1600 ? 'Très bien' : moyenne >= 1400 ? 'Bien' : moyenne >= 1200 ? 'Assez bien' : moyenne >= 1000 ? 'Passable' : '',
+      decision: parMatiere ? '' : (moyenne >= 1000 ? 'Admis(e)' : 'Redouble'),
+      incomplet: i == 3,
+      moyennesPeriodes: annuel ? [moyenne + 30, moyenne - 25, null] : const [],
+    ));
+  }
+  lignes.add(const LigneDocClassement(
+    nom: 'SYLLA Moussa',
+    matricule: '2026-0098',
+    moyenne: 1500,
+    observation: 'Parti',
+  ));
+  lignes.add(const LigneDocClassement(
+    nom: 'CONDÉ Aïcha',
+    matricule: '2026-0099',
+    observation: 'Sans note',
+  ));
+  return DocumentClassement(
+    entete: enteteExemple(avecImages: avecImages),
+    titre: annuel ? 'RÉSULTATS ANNUELS' : (parMatiere ? 'CLASSEMENT EN MATHÉMATIQUES' : 'CLASSEMENT GÉNÉRAL'),
+    sousTitre: annuel ? 'Année entière' : 'Trimestre 1',
+    classeNom: '10e A',
+    anneeLibelle: '2026-2027',
+    libelleMoyenne: parMatiere ? 'Note /20' : 'Moyenne',
+    periodes: annuel ? const ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'] : const [],
+    avecDecision: !parMatiere,
+    lignes: lignes,
+    stats: avecStats
+        ? StatsClasse(
+            effectif: nbEleves + 2,
+            filles: 14,
+            garcons: nbEleves - 12,
+            evalues: nbEleves,
+            admis: nbEleves - 4,
+            nonAdmis: 4,
+            moyenneClasse: 1350,
+            meilleureMoyenne: 1800,
+            plusFaibleMoyenne: 800,
+            tauxReussiteCentiemes: 8400,
+            repartitionMentions: const {'Très bien': 3, 'Bien': 6, 'Assez bien': 7, 'Passable': 5, '': 4},
+          )
+        : null,
+    directeur: 'M. Mamadou Camara',
+    signature: avecImages ? image('signature_exemple.png') : null,
+    cachet: avecImages ? image('cachet_exemple.png') : null,
+    dateEdition: DateTime(2026, 11, 20),
+  );
+}
+
+/// En-tête d'exemple de l'établissement.
+EnteteEtablissement enteteExemple({bool avecImages = true}) => EnteteEtablissement(
+      nom: 'Groupe Scolaire Nialy International',
+      adresse: 'Tombolia, Commune de Matoto, Conakry',
+      telephone: '+224 622 00 00 00',
+      email: 'contact@nialy.example',
+      devise: 'Travail - Justice - Solidarité',
+      infosAdmin: 'Agrément n° 0123/MEPU-A/2020\nBP 1234 Conakry',
+      logo: avecImages ? image('logo_exemple.png') : null,
+    );

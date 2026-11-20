@@ -164,14 +164,15 @@ void main() {
       expect(pdf.pages, 6);
     });
 
-    test('les polices ne sont incorporées qu\'une fois pour tout le document', () async {
-      final un = await generer([bulletinExemple()]);
-      final dix = await generer([
-        for (var i = 0; i < 10; i++) bulletinExemple(nom: 'ELEVE$i'),
+    test('quarante bulletins : un fichier de taille raisonnable', () async {
+      final pdf = await generer([
+        for (var i = 0; i < 40; i++) bulletinExemple(nom: 'ELEVE$i', matricule: '2026-$i'),
       ]);
-      // Les polices pèsent des centaines de kilo-octets : répétées sur chaque
-      // page, dix bulletins pèseraient près de dix fois plus qu'un seul.
-      expect(dix.octets.length, lessThan(un.octets.length * 3));
+      verifierPdf(pdf);
+      expect(pdf.pages, 40);
+      // Logo, cachet, signature et polices ne doivent pas être répétés à chaque
+      // page : une classe entière reste bien en dessous de quelques mégaoctets.
+      expect(pdf.octets.length, lessThan(3 * 1024 * 1024));
     });
   });
 

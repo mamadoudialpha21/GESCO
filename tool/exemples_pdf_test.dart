@@ -8,7 +8,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gesco/documents/modele_bulletin.dart';
+import 'package:gesco/documents/modele_classement.dart';
 import 'package:gesco/documents/pdf_bulletin.dart';
+import 'package:gesco/documents/pdf_classement.dart';
 import 'package:gesco/documents/styles_bulletin.dart';
 
 import '../test/documents/exemples.dart';
@@ -51,5 +53,20 @@ void main() {
             bulletinExemple(nom: 'ELEVE$i', prenom: 'Prénom$i', matricule: '2026-001$i'),
         ],
         StyleBulletin.couleursGuineennes);
+
+    Future<void> ecrireClassement(String nom, DocumentClassement d, StyleBulletin style) async {
+      final pdf = await genererClassementPdf(d, style: style, polices: p);
+      File('${dossier.path}/$nom.pdf').writeAsBytesSync(pdf.octets);
+      // ignore: avoid_print
+      print('PDF $nom : ${pdf.pages} page(s), ${pdf.octets.length} octets');
+    }
+
+    await ecrireClassement('classement_general', classementExemple(), classique);
+    await ecrireClassement('classement_40_eleves', classementExemple(nbEleves: 40),
+        StyleBulletin.moderneAnthracite);
+    await ecrireClassement(
+        'resultats_annuels', classementExemple(annuel: true), StyleBulletin.violet);
+    await ecrireClassement('classement_matiere',
+        classementExemple(parMatiere: true, avecStats: false), StyleBulletin.elegantRose);
   });
 }
