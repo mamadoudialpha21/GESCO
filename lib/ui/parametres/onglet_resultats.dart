@@ -80,6 +80,8 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
   List<_LignePalier> _mentions = [];
   List<_LignePalier> _decisionsPeriode = [];
   List<_LignePalier> _decisionsAnnee = [];
+  bool _absenceZero = false;
+  bool _periodeComplete = false;
 
   /// Lignes retirées : leurs contrôleurs sont libérés à la fermeture de
   /// l'écran seulement, pour ne pas toucher à un champ encore affiché.
@@ -112,6 +114,8 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
     _mentions = _lignes(c.mentions);
     _decisionsPeriode = _lignes(c.decisionsPeriode);
     _decisionsAnnee = _lignes(c.decisionsAnnee);
+    _absenceZero = c.absenceEgaleZero;
+    _periodeComplete = c.exigerPeriodeComplete;
   }
 
   List<Palier> _lirePaliers(
@@ -157,6 +161,8 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
       mentions: mentions,
       decisionsPeriode: decisionsPeriode,
       decisionsAnnee: decisionsAnnee,
+      absenceEgaleZero: _absenceZero,
+      exigerPeriodeComplete: _periodeComplete,
     );
     final ok = await executer(
       context,
@@ -225,6 +231,36 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
                   ],
                 ),
                 _carte(
+                  titre: 'Règles de calcul',
+                  aide: 'Ces règles s\'appliquent à tous les calculs de l\'année : '
+                      'moyennes, rangs, classements et statistiques.',
+                  enfants: [
+                    SwitchListTile(
+                      key: const Key('option_absence_zero'),
+                      contentPadding: EdgeInsets.zero,
+                      value: _absenceZero,
+                      onChanged: (v) => setState(() => _absenceZero = v),
+                      title: const Text('Une absence compte pour zéro'),
+                      subtitle: const Text(
+                        'Désactivé : une absence est ignorée dans la moyenne '
+                        '(jamais comptée comme zéro).',
+                      ),
+                    ),
+                    SwitchListTile(
+                      key: const Key('option_periode_complete'),
+                      contentPadding: EdgeInsets.zero,
+                      value: _periodeComplete,
+                      onChanged: (v) => setState(() => _periodeComplete = v),
+                      title: const Text('Exiger les trois mois pour calculer un trimestre'),
+                      subtitle: const Text(
+                        'Activé : pas de moyenne trimestrielle tant qu\'un mois '
+                        'n\'a pas de moyenne, ni de moyenne annuelle tant qu\'un '
+                        'trimestre n\'en a pas.',
+                      ),
+                    ),
+                  ],
+                ),
+                _carte(
                   titre: 'Mentions',
                   aide:
                       'La mention la plus haute atteinte est retenue. '
@@ -259,11 +295,13 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
                   runSpacing: 8,
                   children: [
                     FilledButton.icon(
+                      key: const Key('enregistrer_resultats'),
                       onPressed: _enregistrer,
                       icon: const Icon(Icons.save),
                       label: const Text('Enregistrer'),
                     ),
                     OutlinedButton.icon(
+                      key: const Key('valeurs_par_defaut'),
                       onPressed: _valeursParDefaut,
                       icon: const Icon(Icons.restart_alt),
                       label: const Text('Valeurs par défaut'),

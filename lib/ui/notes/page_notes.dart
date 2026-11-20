@@ -185,7 +185,13 @@ class _VueSaisieState extends State<VueSaisie> {
       orElse: () => classes.first,
     );
     final id = choisie.classe.id;
-    final effectives = await services.evaluations.saisiesEffectives(id);
+    final config = await services.configs.lire(anneeId);
+    // L'option « absence = zéro » s'applique aussi aux notes du mois calculées
+    // d'après les évaluations.
+    final effectives = await services.evaluations.saisiesEffectives(
+      id,
+      absenceEgaleZero: config.absenceEgaleZero,
+    );
     return _DonneesNotes(
       classes: classes,
       classe: choisie,
@@ -194,7 +200,7 @@ class _VueSaisieState extends State<VueSaisie> {
       saisies: effectives.saisies,
       casesEvaluees: effectives.casesEvaluees,
       moisVerrouilles: await services.notes.moisVerrouilles(id),
-      config: await services.configs.lire(anneeId),
+      config: config,
     );
   }
 

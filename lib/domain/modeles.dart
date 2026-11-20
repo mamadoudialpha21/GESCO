@@ -119,11 +119,16 @@ class DonneesEleve {
     required this.prenom,
     required this.sexe,
     required this.saisies,
+    this.actif = true,
   });
 
   final int inscriptionId;
   final String nom;
   final String prenom;
+
+  /// Faux pour un élève parti ou ayant abandonné : il garde ses notes mais
+  /// n'est ni classé ni compté dans les statistiques.
+  final bool actif;
 
   /// 'M' ou 'F'.
   final String sexe;
@@ -160,7 +165,18 @@ class ConfigResultats {
     required this.mentions,
     required this.decisionsPeriode,
     required this.decisionsAnnee,
+    this.absenceEgaleZero = false,
+    this.exigerPeriodeComplete = false,
   });
+
+  /// Un élève absent à une note compte pour 0 dans les moyennes. Par défaut,
+  /// une absence est ignorée (jamais comptée comme zéro).
+  final bool absenceEgaleZero;
+
+  /// Un trimestre n'a de moyenne que si ses trois mois en ont une, et
+  /// l'année seulement si tous ses trimestres en ont une. Par défaut, la
+  /// moyenne se calcule sur les mois disponibles.
+  final bool exigerPeriodeComplete;
 
   /// Moyenne minimale pour être admis (centièmes). Pilote les statistiques
   /// « admis / non admis » et la couleur orange.
@@ -198,6 +214,18 @@ class ConfigResultats {
       Palier(1000, 'Admis(e) en classe supérieure'),
     ],
   );
+
+  /// Copie de la configuration avec les règles de calcul indiquées.
+  ConfigResultats avecRegles({bool? absenceEgaleZero, bool? exigerPeriodeComplete}) =>
+      ConfigResultats(
+        seuilAdmission: seuilAdmission,
+        seuilBon: seuilBon,
+        mentions: mentions,
+        decisionsPeriode: decisionsPeriode,
+        decisionsAnnee: decisionsAnnee,
+        absenceEgaleZero: absenceEgaleZero ?? this.absenceEgaleZero,
+        exigerPeriodeComplete: exigerPeriodeComplete ?? this.exigerPeriodeComplete,
+      );
 
   /// Mention correspondant à [moyenne] (chaîne vide si aucune).
   String mention(int moyenne) => _libelle(mentions, moyenne);
@@ -269,6 +297,8 @@ class ConfigResultats {
         'mentions': [for (final p in mentions) p.toJson()],
         'decisionsPeriode': [for (final p in decisionsPeriode) p.toJson()],
         'decisionsAnnee': [for (final p in decisionsAnnee) p.toJson()],
+        'absenceEgaleZero': absenceEgaleZero,
+        'exigerPeriodeComplete': exigerPeriodeComplete,
       };
 
   String toJsonString() => jsonEncode(toJson());
@@ -284,6 +314,8 @@ class ConfigResultats {
       mentions: lire('mentions'),
       decisionsPeriode: lire('decisionsPeriode'),
       decisionsAnnee: lire('decisionsAnnee'),
+      absenceEgaleZero: json['absenceEgaleZero'] as bool? ?? false,
+      exigerPeriodeComplete: json['exigerPeriodeComplete'] as bool? ?? false,
     );
   }
 

@@ -537,6 +537,7 @@ class _GrilleNotesState extends State<GrilleNotes> {
           prenom: e.prenom,
           sexe: e.sexe,
           saisies: _saisies[e.inscriptionId] ?? const {},
+          actif: e.actif,
         ),
     ];
     final moteur = MoteurResultats(

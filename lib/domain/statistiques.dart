@@ -54,10 +54,18 @@ StatsClasse calculerStats({
   required List<ResultatEleve> resultats,
   required ConfigResultats config,
 }) {
-  final filles = eleves.where((e) => e.sexe == 'F').length;
-  final garcons = eleves.where((e) => e.sexe == 'M').length;
+  // Les élèves partis ou ayant abandonné ne comptent pas.
+  final inactifs = {
+    for (final e in eleves)
+      if (!e.actif) e.inscriptionId,
+  };
+  final actifs = [for (final e in eleves) if (e.actif) e];
+  final filles = actifs.where((e) => e.sexe == 'F').length;
+  final garcons = actifs.where((e) => e.sexe == 'M').length;
 
-  final evalues = resultats.where((r) => r.moyenne != null).toList();
+  final evalues = resultats
+      .where((r) => r.moyenne != null && !inactifs.contains(r.inscriptionId))
+      .toList();
   final moyennes = [for (final r in evalues) r.moyenne!];
   final admis = moyennes.where((m) => m >= config.seuilAdmission).length;
 
@@ -74,7 +82,7 @@ StatsClasse calculerStats({
   final somme = moyennes.fold(0, (a, b) => a + b);
 
   return StatsClasse(
-    effectif: eleves.length,
+    effectif: actifs.length,
     filles: filles,
     garcons: garcons,
     evalues: evalues.length,

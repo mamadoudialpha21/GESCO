@@ -114,15 +114,26 @@ class MoteurResultats {
 
   // ---------------------------------------------------------------- Mois
 
+  /// Note retenue pour une matière et un mois (centièmes) : la note chiffrée,
+  /// 0 pour un absent si l'option « absence = zéro » est active, sinon null
+  /// (non saisie, dispensé, ou absent ignoré).
+  int? _valeur(DonneesEleve eleve, int matiereId, int mois) {
+    final saisie = eleve.saisie(matiereId, mois);
+    if (saisie == null) return null;
+    if (saisie.estNumerique) return saisie.centiemes;
+    if (saisie.etat == EtatNote.absent && config.absenceEgaleZero) return 0;
+    return null;
+  }
+
   /// Moyenne mensuelle (centièmes), ou null si aucune note chiffrée.
   int? moyenneMois(DonneesEleve eleve, int mois) {
     _verifierMois(mois);
     var somme = 0;
     var coefficients = 0;
     for (final matiere in _matieresComptees) {
-      final saisie = eleve.saisie(matiere.id, mois);
-      if (saisie != null && saisie.estNumerique) {
-        somme += saisie.centiemes! * matiere.coefficient;
+      final valeur = _valeur(eleve, matiere.id, mois);
+      if (valeur != null) {
+        somme += valeur * matiere.coefficient;
         coefficients += matiere.coefficient;
       }
     }
@@ -130,13 +141,15 @@ class MoteurResultats {
     return divisionArrondie(somme, coefficients);
   }
 
-  /// Vrai s'il manque une note (non saisie ou absent) pour au moins une
-  /// matière. Une matière « dispensé » n'est pas un manque.
+  /// Vrai s'il manque une note (non saisie, ou absent quand l'absence ne
+  /// compte pas pour zéro) pour au moins une matière. Une matière
+  /// « dispensé » n'est pas un manque.
   bool moisIncomplet(DonneesEleve eleve, int mois) {
     _verifierMois(mois);
     for (final matiere in _matieresComptees) {
       final saisie = eleve.saisie(matiere.id, mois);
-      if (saisie == null || saisie.etat == EtatNote.absent) return true;
+      if (saisie == null) return true;
+      if (saisie.etat == EtatNote.absent && !config.absenceEgaleZero) return true;
     }
     return false;
   }
@@ -146,17 +159,12 @@ class MoteurResultats {
   /// Moyenne sur une étendue (mois, période, séquence ou année).
   int? moyenne(DonneesEleve eleve, Portee portee) {
     if (portee.estMois) return moyenneMois(eleve, portee.moisChoisi!);
-    if (portee.estPeriode) {
-      return _moyenneDe([
-        for (final mois in portee.periodeChoisie!.mois)
-          if (moyenneMois(eleve, mois) != null) moyenneMois(eleve, mois)!,
-      ]);
-    }
-    return _moyenneDe([
-      for (final p in calendrier.periodes)
-        if (moyenne(eleve, Portee.periode(p)) != null)
-          moyenne(eleve, Portee.periode(p))!,
-    ]);
+    final List<int?> valeurs = portee.estPeriode
+        ? [for (final mois in portee.periodeChoisie!.mois) moyenneMois(eleve, mois)]
+        : [
+            for (final p in calendrier.periodes) moyenne(eleve, Portee.periode(p)),
+          ];
+    return _moyenneDes(valeurs);
   }
 
   /// Vrai s'il manque des notes dans l'étendue : un mois sans moyenne ou
@@ -180,23 +188,16 @@ class MoteurResultats {
   int? noteMatiere(DonneesEleve eleve, int matiereId, Portee portee) {
     if (portee.estMois) {
       _verifierMois(portee.moisChoisi!);
-      final saisie = eleve.saisie(matiereId, portee.moisChoisi!);
-      return saisie != null && saisie.estNumerique ? saisie.centiemes : null;
+      return _valeur(eleve, matiereId, portee.moisChoisi!);
     }
     if (portee.estPeriode) {
-      final valeurs = <int>[];
-      for (final mois in portee.periodeChoisie!.mois) {
-        final saisie = eleve.saisie(matiereId, mois);
-        if (saisie != null && saisie.estNumerique) {
-          valeurs.add(saisie.centiemes!);
-        }
-      }
-      return _moyenneDe(valeurs);
+      return _moyenneDes([
+        for (final mois in portee.periodeChoisie!.mois) _valeur(eleve, matiereId, mois),
+      ]);
     }
-    return _moyenneDe([
+    return _moyenneDes([
       for (final p in calendrier.periodes)
-        if (noteMatiere(eleve, matiereId, Portee.periode(p)) != null)
-          noteMatiere(eleve, matiereId, Portee.periode(p))!,
+        noteMatiere(eleve, matiereId, Portee.periode(p)),
     ]);
   }
 
@@ -273,7 +274,12 @@ class MoteurResultats {
     final moyennes = <int, int?>{
       for (final e in eleves) e.inscriptionId: moyenne(e),
     };
-    final rangs = calculerRangs(moyennes);
+    // Les élèves partis ou ayant abandonné ne sont pas classés et ne
+    // décalent pas le rang des autres.
+    final rangs = calculerRangs({
+      for (final e in eleves)
+        if (e.actif) e.inscriptionId: moyennes[e.inscriptionId],
+    });
 
     return [
       for (final e in eleves)
@@ -314,6 +320,13 @@ class MoteurResultats {
     if (valeurs.isEmpty) return null;
     final somme = valeurs.fold(0, (a, b) => a + b);
     return divisionArrondie(somme, valeurs.length);
+  }
+
+  /// Moyenne des valeurs disponibles ; avec l'option « période complète »,
+  /// null dès qu'une valeur manque.
+  int? _moyenneDes(List<int?> valeurs) {
+    if (config.exigerPeriodeComplete && valeurs.any((v) => v == null)) return null;
+    return _moyenneDe([for (final v in valeurs) if (v != null) v]);
   }
 
   static void _verifierMois(int mois) {
