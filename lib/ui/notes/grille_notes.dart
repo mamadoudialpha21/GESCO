@@ -8,6 +8,7 @@ import '../../data/depots/note_depot.dart';
 import '../../data/erreurs.dart';
 import '../../data/modeles_donnees.dart';
 import '../../domain/arrondi.dart';
+import '../../domain/calendrier.dart';
 import '../../domain/bareme.dart';
 import '../../domain/modeles.dart';
 import '../../domain/moteur_resultats.dart';
@@ -121,6 +122,7 @@ class GrilleNotes extends StatefulWidget {
     required this.periode,
     this.casesEvaluees = const {},
     this.moisVerrouilles = const {},
+    this.calendrier = Calendrier.defaut,
   });
 
   final EnregistrerNote enregistrer;
@@ -129,6 +131,10 @@ class GrilleNotes extends StatefulWidget {
   final SaisiesClasse saisies;
   final ConfigResultats config;
   final Periode periode;
+
+  /// Périodes de l'année (trimestres, semestres, séquences) : sert à calculer
+  /// les moyennes des périodes et de l'année.
+  final Calendrier calendrier;
 
   /// Couples (matière, mois) dont la note du mois est calculée d'après les
   /// évaluations : la saisie directe y est interdite.
@@ -484,24 +490,29 @@ class _GrilleNotesState extends State<GrilleNotes> {
             valeur: (d, r) => d.saisie(m.id, p.numero)?.centiemes,
           ));
         }
-      case GenrePeriode.trimestre:
+      case GenrePeriode.trimestre || GenrePeriode.sequence:
+        final portee = p.portee(widget.calendrier);
         for (final m in widget.matieres) {
           colonnes.add(_Colonne(
             titre: m.nom,
             largeur: largeurColonneMatiere(m.nom),
             sousTitre: 'coef ${formaterCoefficient(m.coefficient)}',
-            valeur: (d, r) => moteur.noteMatiereTrimestre(d, m.id, p.numero),
+            valeur: (d, r) => moteur.noteMatiere(d, m.id, portee),
           ));
         }
       case GenrePeriode.annee:
-        for (final t in trimestres) {
+        for (final periode in widget.calendrier.periodes) {
           colonnes.add(_Colonne(
-            titre: 'Trimestre $t',
+            titre: periode.libelle,
             sousTitre: 'moyenne',
             largeur: 92,
-            valeur: (d, r) => moteur.moyenneTrimestre(d, t),
+            valeur: (d, r) => moteur.moyenne(d, Portee.periode(periode)),
           ));
         }
+    }
+    // Les moyennes mensuelles peuvent être masquées dans les paramètres.
+    if (p.genre == GenrePeriode.mois && !widget.calendrier.moyenneMensuelle) {
+      return colonnes;
     }
     colonnes.add(_Colonne(
       titre: p.genre == GenrePeriode.annee ? 'Moy. annuelle' : 'Moyenne',
@@ -544,12 +555,9 @@ class _GrilleNotesState extends State<GrilleNotes> {
       matieres: [for (final m in widget.matieres) m.versCoef()],
       eleves: donnees,
       config: widget.config,
+      calendrier: widget.calendrier,
     );
-    final resultats = switch (p.genre) {
-      GenrePeriode.mois => moteur.resultatsMois(p.numero),
-      GenrePeriode.trimestre => moteur.resultatsTrimestre(p.numero),
-      GenrePeriode.annee => moteur.resultatsAnnee(),
-    };
+    final resultats = moteur.resultats(p.portee(widget.calendrier));
     final parId = {for (final r in resultats) r.inscriptionId: r};
     final effectifsRang = <int, int>{};
     for (final r in resultats) {

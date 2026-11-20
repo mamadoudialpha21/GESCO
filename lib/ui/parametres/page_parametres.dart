@@ -6,6 +6,7 @@ import 'onglet_classes_matieres.dart';
 import 'onglet_enseignants.dart';
 import 'onglet_etablissement.dart';
 import 'onglet_notation.dart';
+import 'onglet_periodes.dart';
 import 'onglet_resultats.dart';
 
 /// Espace de configuration : établissement, années, classes et matières,
@@ -18,7 +19,7 @@ class PageParametres extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(
         children: [
           Container(
@@ -36,6 +37,7 @@ class PageParametres extends StatelessWidget {
                 ),
                 Tab(text: 'Enseignants', icon: Icon(Icons.badge_outlined)),
                 Tab(text: 'Notation', icon: Icon(Icons.rule)),
+                Tab(text: 'Périodes', icon: Icon(Icons.date_range_outlined)),
                 Tab(
                   text: 'Mentions et décisions',
                   icon: Icon(Icons.emoji_events_outlined),
@@ -52,6 +54,7 @@ class PageParametres extends StatelessWidget {
                 OngletClassesMatieres(etat: etat),
                 OngletEnseignants(etat: etat),
                 OngletNotation(etat: etat),
+                OngletPeriodes(etat: etat),
                 OngletResultats(etat: etat),
               ],
             ),

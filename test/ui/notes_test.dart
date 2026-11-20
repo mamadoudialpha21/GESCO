@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gesco/data/depots/note_depot.dart';
 import 'package:gesco/data/erreurs.dart';
 import 'package:gesco/data/modeles_donnees.dart';
+import 'package:gesco/domain/calendrier.dart';
 import 'package:gesco/domain/modeles.dart';
 import 'package:gesco/ui/notes/grille_notes.dart';
 import 'package:gesco/ui/notes/periode.dart';
@@ -97,6 +98,7 @@ Future<Banc> afficher(
   List<MatiereClasse> matieresAffichees = matieres,
   Set<(int, int)> casesEvaluees = const {},
   Set<int> moisVerrouilles = const {},
+  Calendrier calendrier = Calendrier.defaut,
 }) async {
   tester.view.physicalSize = Size(largeur, 900);
   tester.view.devicePixelRatio = 1.0;
@@ -115,6 +117,7 @@ Future<Banc> afficher(
           periode: periode,
           casesEvaluees: casesEvaluees,
           moisVerrouilles: moisVerrouilles,
+          calendrier: calendrier,
         ),
       ),
     ),
@@ -646,6 +649,130 @@ void main() {
       expect(lecture(0, 0), findsNothing);
       await ouvrir(tester, 0, 0);
       expect(champ, findsOneWidget);
+    });
+  });
+
+  group('calendrier configurable', () {
+    // Maths d'Aminata : 10, 12, 14 et 16 en octobre, novembre, décembre, janvier.
+    SaisiesClasse saisiesQuatreMois() => {
+          1: {
+            1: {
+              10: const Saisie.valeur(1000),
+              11: const Saisie.valeur(1200),
+              12: const Saisie.valeur(1400),
+              1: const Saisie.valeur(1600),
+            },
+          },
+        };
+
+    testWidgets('trimestres : la période 1 regroupe octobre à décembre', (tester) async {
+      await afficher(
+        tester,
+        periode: const Periode.trimestre(1),
+        saisies: saisiesQuatreMois(),
+      );
+      expect(texteDe(tester, const Key('moyenne_0')), '12,00');
+    });
+
+    testWidgets('semestres : le semestre 1 regroupe octobre à janvier', (tester) async {
+      await afficher(
+        tester,
+        periode: const Periode.trimestre(1, etiquette: 'Semestre 1'),
+        saisies: saisiesQuatreMois(),
+        calendrier: Calendrier.semestres,
+      );
+      // (10 + 12 + 14 + 16) / 4 = 13,00
+      expect(texteDe(tester, const Key('moyenne_0')), '13,00');
+      expect(find.textContaining('Semestre 1'), findsWidgets);
+    });
+
+    testWidgets('semestres : l\'année a deux colonnes de période', (tester) async {
+      await afficher(
+        tester,
+        periode: const Periode.annee(),
+        saisies: saisiesQuatreMois(),
+        calendrier: Calendrier.semestres,
+      );
+      expect(find.text('Semestre 1'), findsOneWidget);
+      expect(find.text('Semestre 2'), findsOneWidget);
+      expect(find.text('Trimestre 3'), findsNothing);
+      // Seul le semestre 1 est renseigné : moyenne annuelle = 13,00.
+      expect(texteDe(tester, const Key('moyenne_0')), '13,00');
+    });
+
+    testWidgets('séquences : moyenne d\'une séquence de deux mois', (tester) async {
+      final calendrier = Calendrier.trimestres.copyWith(
+        sequences: Calendrier.sequencesProposees,
+      );
+      await afficher(
+        tester,
+        periode: const Periode.sequence(1, etiquette: 'Séquence 1'),
+        saisies: saisiesQuatreMois(),
+        calendrier: calendrier,
+      );
+      // Séquence 1 = octobre et novembre : (10 + 12) / 2 = 11,00
+      expect(texteDe(tester, const Key('moyenne_0')), '11,00');
+      expect(caseDe(0, 0), findsNothing, reason: 'une séquence est en lecture seule');
+    });
+
+    testWidgets('moyennes mensuelles masquées : seules les notes restent', (tester) async {
+      await afficher(
+        tester,
+        calendrier: Calendrier.defaut.copyWith(moyenneMensuelle: false),
+      );
+      expect(find.byKey(const Key('moyenne_0')), findsNothing);
+      expect(find.byKey(const Key('rang_0')), findsNothing);
+      expect(caseDe(0, 0), findsOneWidget, reason: 'la saisie reste possible');
+    });
+
+    testWidgets('moyennes mensuelles masquées : le trimestre garde sa moyenne',
+        (tester) async {
+      await afficher(
+        tester,
+        periode: const Periode.trimestre(1),
+        saisies: saisiesQuatreMois(),
+        calendrier: Calendrier.defaut.copyWith(moyenneMensuelle: false),
+      );
+      expect(texteDe(tester, const Key('moyenne_0')), '12,00');
+    });
+
+    test('periodesDuCalendrier : trimestres (ordre par défaut)', () {
+      final p = periodesDuCalendrier(Calendrier.defaut);
+      expect(p, periodesAffichees);
+      expect(p, hasLength(13));
+    });
+
+    test('periodesDuCalendrier : semestres', () {
+      final p = periodesDuCalendrier(Calendrier.semestres);
+      expect(p.map((x) => x.libelle), [
+        'Octobre', 'Novembre', 'Décembre', 'Janvier', 'Semestre 1',
+        'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Semestre 2', 'Année',
+      ]);
+    });
+
+    test('periodesDuCalendrier : une séquence précède la période qui la termine', () {
+      final calendrier = Calendrier.trimestres.copyWith(
+        sequences: Calendrier.sequencesProposees,
+      );
+      final p = periodesDuCalendrier(calendrier);
+      expect(p, hasLength(9 + 6 + 3 + 1));
+      expect(p.map((x) => x.libelle).take(7), [
+        'Octobre', 'Novembre', 'Séquence 1', 'Décembre', 'Séquence 2',
+        'Trimestre 1', 'Janvier',
+      ]);
+      expect(p.where((x) => x.genre == GenrePeriode.sequence), hasLength(6));
+    });
+
+    test('periode.portee : numéro de période et de séquence', () {
+      final calendrier = Calendrier.semestres;
+      final portee = const Periode.trimestre(2).portee(calendrier);
+      expect(portee.periodeChoisie!.cle, 's2');
+      expect(const Periode.mois(3).portee(calendrier).moisChoisi, 3);
+      expect(const Periode.annee().portee(calendrier).annuelle, isTrue);
+    });
+
+    test('l\'étiquette ne compte pas dans l\'égalité', () {
+      expect(const Periode.trimestre(1, etiquette: 'Semestre 1'), const Periode.trimestre(1));
     });
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/etat_app.dart';
 import '../../data/depots/note_depot.dart';
 import '../../data/modeles_donnees.dart';
+import '../../domain/calendrier.dart';
 import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
 import '../../domain/modeles.dart';
@@ -26,6 +27,7 @@ class _DonneesNotes {
     this.casesEvaluees = const {},
     this.moisVerrouilles = const {},
     this.config = ConfigResultats.defaut,
+    this.calendrier = Calendrier.defaut,
   });
 
   final List<ClasseResume> classes;
@@ -38,6 +40,7 @@ class _DonneesNotes {
   final Set<(int, int)> casesEvaluees;
   final Set<int> moisVerrouilles;
   final ConfigResultats config;
+  final Calendrier calendrier;
 }
 
 enum _Vue { saisie, evaluations, historique }
@@ -201,13 +204,14 @@ class _VueSaisieState extends State<VueSaisie> {
       casesEvaluees: effectives.casesEvaluees,
       moisVerrouilles: await services.notes.moisVerrouilles(id),
       config: config,
+      calendrier: await services.calendriers.lire(anneeId),
     );
   }
 
   /// Verrouille le mois affiché (avec confirmation) ou le déverrouille.
-  Future<void> _basculerVerrou(int classeId, String classeNom) async {
-    final mois = _periode.numero;
-    if (!_periode.saisissable) return;
+  Future<void> _basculerVerrou(int classeId, String classeNom, Periode periode) async {
+    if (!periode.saisissable) return;
+    final mois = periode.numero;
     final notes = _etat.services.notes;
     final verrouille = (await notes.moisVerrouilles(classeId)).contains(mois);
     if (!mounted) return;
@@ -265,17 +269,25 @@ class _VueSaisieState extends State<VueSaisie> {
       );
     }
 
+    // La période choisie suit le calendrier de l'année : si elle n'existe plus
+    // (séquences désactivées...), on revient au mois courant.
+    final periodes = periodesDuCalendrier(d.calendrier);
+    final periode = periodes.firstWhere(
+      (p) => p == _periode,
+      orElse: () => Periode.moisDe((widget.maintenant ?? DateTime.now)()),
+    );
     final haut = _Selection(
       classes: d.classes,
       classeId: classe.classe.id,
       nbEleves: d.eleves.length,
       nbMatieres: d.matieres.length,
-      periode: _periode,
-      verrouille: d.moisVerrouilles.contains(_periode.numero) && _periode.saisissable,
+      periodes: periodes,
+      periode: periode,
+      verrouille: d.moisVerrouilles.contains(periode.numero) && periode.saisissable,
       peutVerrouiller: _etat.peut(Permission.notesVerrouiller),
       surClasse: widget.surClasse,
       surPeriode: (p) => setState(() => _periode = p),
-      surVerrou: () => _basculerVerrou(classe.classe.id, classe.classe.nom),
+      surVerrou: () => _basculerVerrou(classe.classe.id, classe.classe.nom, periode),
     );
 
     Widget corps;
@@ -304,7 +316,8 @@ class _VueSaisieState extends State<VueSaisie> {
         eleves: d.eleves,
         saisies: d.saisies,
         config: d.config,
-        periode: _periode,
+        periode: periode,
+        calendrier: d.calendrier,
         casesEvaluees: d.casesEvaluees,
         moisVerrouilles: d.moisVerrouilles,
       );
@@ -324,6 +337,7 @@ class _Selection extends StatelessWidget {
     required this.classeId,
     required this.nbEleves,
     required this.nbMatieres,
+    required this.periodes,
     required this.periode,
     required this.verrouille,
     required this.peutVerrouiller,
@@ -336,6 +350,7 @@ class _Selection extends StatelessWidget {
   final int classeId;
   final int nbEleves;
   final int nbMatieres;
+  final List<Periode> periodes;
   final Periode periode;
   final bool verrouille;
   final bool peutVerrouiller;
@@ -387,7 +402,7 @@ class _Selection extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                for (final p in periodesAffichees)
+                for (final p in periodes)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: ChoiceChip(
