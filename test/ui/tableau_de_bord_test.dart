@@ -22,6 +22,9 @@ void main() {
   late int sow;
   late int bah;
   var versResultats = 0;
+  var versNotes = 0;
+  var versInscriptions = 0;
+  var versParametres = 0;
 
   Future<void> demarrer(
     WidgetTester tester, {
@@ -32,6 +35,9 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     versResultats = 0;
+    versNotes = 0;
+    versInscriptions = 0;
+    versParametres = 0;
 
     gdb = (await tester.runAsync(() => GescoDatabase.ouvrir(
           fabrique: databaseFactoryFfi,
@@ -43,6 +49,7 @@ void main() {
     );
     await tester.runAsync(() async {
       final s = etat.services;
+      await s.etablissements.enregistrer(const Etablissement(nom: 'Groupe Scolaire Test'));
       final annee = await s.annees.creer('2026-2027', activer: true);
       final a = await s.classes.creer(anneeId: annee.id, nom: '10e A', niveau: '10e année');
       final b = await s.classes.creer(anneeId: annee.id, nom: '10e B', niveau: '10e année');
@@ -97,9 +104,9 @@ void main() {
             listenable: etat,
             builder: (context, _) => PageTableauDeBord(
               etat: etat,
-              allerAuxParametres: () {},
-              allerAuxInscriptions: () {},
-              allerAuxNotes: () {},
+              allerAuxParametres: () => versParametres++,
+              allerAuxInscriptions: () => versInscriptions++,
+              allerAuxNotes: () => versNotes++,
               allerAuxResultats: () => versResultats++,
             ),
           ),
@@ -124,6 +131,45 @@ void main() {
 
   String texte(WidgetTester tester, String cle) =>
       tester.widget<Text>(find.byKey(Key(cle))).data!;
+
+  testWidgets('totaux : classes, matières, élèves, filles et garçons, notes', (tester) async {
+    await demarrer(tester);
+    await attendre(tester, find.byKey(const Key('tuile_classes')));
+
+    expect(texte(tester, 'tuile_classes'), '2');
+    expect(texte(tester, 'tuile_matieres'), '3');
+    expect(texte(tester, 'tuile_eleves'), '5');
+    expect(texte(tester, 'tuile_eleves_detail'), '3 garçons  ·  2 filles');
+    expect(texte(tester, 'tuile_notes'), '11');
+    // L'année consultée figure dans le bandeau.
+    expect(find.textContaining('2026-2027'), findsWidgets);
+    await fin(tester);
+  });
+
+  testWidgets('effectif et matières de chaque classe', (tester) async {
+    await demarrer(tester);
+    await attendre(tester, find.text('Répartition par classe'));
+    expect(find.text('4 élèves'), findsOneWidget);
+    expect(find.text('3 matières'), findsNothing);
+    expect(find.text('2 matières'), findsOneWidget);
+    expect(find.text('1 élève'), findsOneWidget);
+    expect(find.text('1 matière'), findsOneWidget);
+    await fin(tester);
+  });
+
+  testWidgets('raccourcis : saisir les notes, inscrire un élève, paramètres', (tester) async {
+    await demarrer(tester);
+    await attendre(tester, find.byKey(const Key('action_notes')));
+    for (final cle in ['action_notes', 'action_inscrire', 'action_parametres']) {
+      await tester.ensureVisible(find.byKey(Key(cle)));
+      await tester.tap(find.byKey(Key(cle)));
+      await tester.pump();
+    }
+    expect(versNotes, 1);
+    expect(versInscriptions, 1);
+    expect(versParametres, 1);
+    await fin(tester);
+  });
 
   testWidgets('indicateurs de l\'année : moyenne générale et taux de réussite', (tester) async {
     await demarrer(tester);

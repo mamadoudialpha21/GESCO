@@ -167,6 +167,7 @@ class PageTableauDeBord extends StatelessWidget {
                   large: large,
                   tuiles: [
                     _Tuile(
+                      cle: 'tuile_classes',
                       libelle: 'Classes',
                       valeur: '${resume.nbClasses}',
                       icone: Icons.class_outlined,
@@ -175,12 +176,14 @@ class PageTableauDeBord extends StatelessWidget {
                           : 'cette année scolaire',
                     ),
                     _Tuile(
+                      cle: 'tuile_matieres',
                       libelle: 'Matières (toutes classes)',
                       valeur: '${resume.nbMatieres}',
                       icone: Icons.menu_book_outlined,
                       detail: 'avec leurs coefficients',
                     ),
                     _Tuile(
+                      cle: 'tuile_eleves',
                       libelle: 'Élèves inscrits',
                       valeur: '${resume.nbEleves}',
                       icone: Icons.people_outline,
@@ -190,6 +193,7 @@ class PageTableauDeBord extends StatelessWidget {
                               '  ·  ${resume.nbFilles} fille${resume.nbFilles > 1 ? 's' : ''}',
                     ),
                     _Tuile(
+                      cle: 'tuile_notes',
                       libelle: 'Notes saisies',
                       valeur: '${resume.nbNotes}',
                       icone: Icons.grading_outlined,
@@ -451,12 +455,15 @@ class _RangeeTuiles extends StatelessWidget {
 
 class _Tuile extends StatelessWidget {
   const _Tuile({
+    required this.cle,
     required this.libelle,
     required this.valeur,
     required this.icone,
     required this.detail,
   });
 
+  /// Repère de la valeur et du détail (pour les tests) : `<cle>` et `<cle>_detail`.
+  final String cle;
   final String libelle;
   final String valeur;
   final IconData icone;
@@ -485,6 +492,7 @@ class _Tuile extends StatelessWidget {
               children: [
                 Text(
                   valeur,
+                  key: Key(cle),
                   style: const TextStyle(
                     color: CouleursGesco.texte,
                     fontSize: 30,
@@ -503,6 +511,7 @@ class _Tuile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   detail,
+                  key: Key('${cle}_detail'),
                   style: const TextStyle(color: CouleursGesco.gris, fontSize: 12.5),
                 ),
               ],
