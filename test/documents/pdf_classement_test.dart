@@ -26,11 +26,18 @@ void main() {
   group('classement général', () {
     for (final style in StyleBulletin.tous) {
       test('${style.nom} : PDF valide', () async {
-        final pdf = await generer(classementExemple(), style: style);
+        // Vingt élèves, deux non classés, statistiques et signature : une page.
+        final pdf = await generer(classementExemple(nbEleves: 20), style: style);
         verifierPdf(pdf);
         expect(pdf.pages, 1);
       });
     }
+
+    test('vingt-cinq élèves : une ou deux pages', () async {
+      final pdf = await generer(classementExemple());
+      verifierPdf(pdf);
+      expect(pdf.pages, inInclusiveRange(1, 2));
+    });
 
     test('une classe nombreuse continue sur plusieurs pages', () async {
       final pdf = await generer(classementExemple(nbEleves: 90));
@@ -48,13 +55,14 @@ void main() {
 
   group('autres présentations', () {
     test('résultats annuels avec colonnes de périodes', () async {
-      final pdf = await generer(classementExemple(annuel: true));
+      final pdf = await generer(classementExemple(nbEleves: 20, annuel: true));
       verifierPdf(pdf);
       expect(pdf.pages, 1);
     });
 
     test('classement dans une matière, sans décision ni statistiques', () async {
-      final pdf = await generer(classementExemple(parMatiere: true, avecStats: false));
+      final pdf = await generer(
+          classementExemple(nbEleves: 20, parMatiere: true, avecStats: false));
       verifierPdf(pdf);
       expect(pdf.pages, 1);
     });

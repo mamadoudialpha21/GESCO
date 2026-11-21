@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../app/calcul_classe.dart';
 import '../../app/etat_app.dart';
+import '../../documents/ouvrir_document.dart';
+import '../../documents/polices_pdf.dart';
 import '../../domain/arrondi.dart';
 import '../../domain/calendrier.dart';
 import '../../domain/modeles.dart';
@@ -16,8 +19,9 @@ import '../commun/composants.dart';
 import '../notes/choix_classe.dart';
 import '../theme.dart';
 import 'vue_appreciations.dart';
+import 'vue_bulletins.dart';
 
-enum _Vue { eleves, classes, appreciations }
+enum _Vue { eleves, classes, appreciations, bulletins }
 
 class _DonneesResultats {
   const _DonneesResultats({
@@ -38,10 +42,19 @@ class PageResultats extends StatefulWidget {
     required this.etat,
     required this.allerAuxParametres,
     this.maintenant,
+    this.ouvreur = ouvrirFichier,
+    this.dossierDocuments,
+    this.chargerPolices = PolicesPdf.charger,
   });
 
   final EtatApp etat;
   final VoidCallback allerAuxParametres;
+
+  /// Ouverture des PDF dans le lecteur du système, dossier d'enregistrement et
+  /// chargement des polices : remplaçables dans les tests.
+  final Ouvreur ouvreur;
+  final Directory? dossierDocuments;
+  final Future<PolicesPdf> Function() chargerPolices;
 
   /// Horloge (remplaçable dans les tests) : sert à choisir la période affichée
   /// au départ.
@@ -155,6 +168,10 @@ class _PageResultatsState extends State<PageResultats> {
               value: _Vue.appreciations,
               label: Text('Appréciations', key: Key('vue_appreciations')),
             ),
+            ButtonSegment(
+              value: _Vue.bulletins,
+              label: Text('Bulletins', key: Key('vue_bulletins')),
+            ),
           ],
           selected: {_vue},
           onSelectionChanged: (s) => setState(() => _vue = s.first),
@@ -211,12 +228,24 @@ class _PageResultatsState extends State<PageResultats> {
           ..._vueEleves(calcul, portee, matiereId)
         else if (_vue == _Vue.classes)
           ..._vueClasses(d.calculs, portee)
-        else
+        else if (_vue == _Vue.appreciations)
           VueAppreciations(
             etat: widget.etat,
             calcul: calcul,
             portee: portee,
             periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
+          )
+        else
+          VueBulletins(
+            // Nouvelle vue (et dernier document oublié) à chaque classe ou période.
+            key: ValueKey('bulletins-${calcul.classe.classe.id}-$cle'),
+            etat: widget.etat,
+            calcul: calcul,
+            portee: portee,
+            periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
+            ouvreur: widget.ouvreur,
+            dossier: widget.dossierDocuments,
+            chargerPolices: widget.chargerPolices,
           ),
       ],
     );

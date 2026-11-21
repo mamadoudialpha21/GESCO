@@ -18,6 +18,7 @@ class CleParametre {
   static const theme = 'interface.theme';
   static const lignesParPage = 'interface.lignes_par_page';
   static const baremeDefaut = 'notation.bareme_defaut';
+  static const styleDocuments = 'documents.style';
 }
 
 /// Paramètres du logiciel enregistrés sous forme clé / valeur.
@@ -42,6 +43,11 @@ class ParametreDepot {
     await ecrire(CleParametre.baremeDefaut, '$bareme');
     await controle.noter('modification', 'parametre', details: 'barème par défaut : $bareme');
   }
+
+  /// Identifiant du style des documents PDF choisi en dernier (null si aucun).
+  Future<String?> styleDocuments() => lire(CleParametre.styleDocuments);
+
+  Future<void> definirStyleDocuments(String id) => ecrire(CleParametre.styleDocuments, id);
 
   Future<String?> lire(String cle) async {
     final l = await _db.query('parametre', where: 'cle = ?', whereArgs: [cle]);

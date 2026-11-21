@@ -32,10 +32,20 @@ Future<DocumentPdf> genererClassementPdf(
 }
 
 class _PageClassement {
-  _PageClassement(this.d, this.o);
+  _PageClassement(this.d, this.o) : _pad = _rembourragePour(d.lignes.length);
 
   final DocumentClassement d;
   final OutilsPdf o;
+
+  /// Espace vertical dans chaque ligne : réduit quand la classe est nombreuse,
+  /// pour qu'une classe d'une trentaine d'élèves tienne sur une page.
+  final double _pad;
+
+  static double _rembourragePour(int nbLignes) {
+    if (nbLignes <= 24) return 3.2;
+    if (nbLignes <= 30) return 2.4;
+    return 2.0;
+  }
 
   StyleBulletin get s => o.style;
 
@@ -142,29 +152,29 @@ class _PageClassement {
       decoration: index.isOdd ? pw.BoxDecoration(color: s.claire) : null,
       children: [
         o.cellule(rang,
-            style: podium ? o.st(9, couleur: s.accent, gras: true) : style, rembourrage: 3),
+            style: podium ? o.st(9, couleur: s.accent, gras: true) : style, rembourrage: _pad),
         o.cellule(
           l.nom,
           style: classe ? gras : discret,
           alignement: pw.Alignment.centerLeft,
           alignementTexte: pw.TextAlign.left,
-          rembourrage: 3,
+          rembourrage: _pad,
         ),
-        o.cellule(l.matricule, style: style, rembourrage: 3),
+        o.cellule(l.matricule, style: style, rembourrage: _pad),
         for (var i = 0; i < d.periodes.length; i++)
           o.cellule(
             formaterCentiemes(i < l.moyennesPeriodes.length ? l.moyennesPeriodes[i] : null),
             style: style,
-            rembourrage: 3,
+            rembourrage: _pad,
           ),
         o.cellule(
           '${formaterCentiemes(l.moyenne)}${l.incomplet && l.moyenne != null ? ' *' : ''}',
           style: classe ? gras : style,
-          rembourrage: 3,
+          rembourrage: _pad,
         ),
-        o.cellule(l.mention.isEmpty ? '—' : l.mention, style: style, rembourrage: 3),
+        o.cellule(l.mention.isEmpty ? '—' : l.mention, style: style, rembourrage: _pad),
         if (d.avecDecision)
-          o.cellule(decision.isEmpty ? '—' : decision, style: style, rembourrage: 3),
+          o.cellule(decision.isEmpty ? '—' : decision, style: style, rembourrage: _pad),
       ],
     );
   }
@@ -250,14 +260,14 @@ class _PageClassement {
             children: [
               pw.Text('Le directeur', style: o.st(8.5, couleur: s.discret, gras: true)),
               pw.SizedBox(
-                height: 58,
+                height: 50,
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.center,
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    if (signature != null) pw.Image(signature, height: 44),
+                    if (signature != null) pw.Image(signature, height: 38),
                     if (signature != null && cachet != null) pw.SizedBox(width: 8),
-                    if (cachet != null) pw.Image(cachet, height: 54),
+                    if (cachet != null) pw.Image(cachet, height: 48),
                   ],
                 ),
               ),
