@@ -6,6 +6,7 @@ import 'package:gesco/app/session.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/domain/calendrier.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:gesco/ui/notes/page_notes.dart';
 import 'package:gesco/ui/parametres/onglet_periodes.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -76,7 +77,7 @@ void main() {
     for (var i = 0; i < 60; i++) {
       final c = (await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 100));
-        return etat.services.calendriers.lire(etat.anneeId!);
+        return etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.primaire);
       }))!;
       await tester.pump(const Duration(milliseconds: 100));
       if (condition(c)) return c;
@@ -162,7 +163,8 @@ void main() {
     await enregistrer(tester);
     await tester.pump();
     expect(find.textContaining('Octobre n\'appartient à aucune période'), findsOneWidget);
-    final c = (await tester.runAsync(() => etat.services.calendriers.lire(etat.anneeId!)))!;
+    final c = (await tester.runAsync(
+        () => etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.primaire)))!;
     expect(c, Calendrier.defaut, reason: 'rien n\'est enregistré');
     await fin(tester);
   });
@@ -287,6 +289,76 @@ void main() {
     await tester.tap(find.byKey(const Key('periode_t1')));
     await tester.pump();
     expect(find.textContaining('Semestre 1 : lecture seule'), findsOneWidget);
+    await fin(tester);
+  });
+
+  testWidgets('chaque cycle a son calendrier : trois trimestres au primaire, '
+      'deux au collège et au lycée', (tester) async {
+    await demarrer(tester, onglet);
+    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+
+    // Primaire : trois trimestres par défaut.
+    expect(nom(tester, 'periode_nom_2'), 'Trimestre 3');
+
+    // Collège : deux trimestres par défaut.
+    await tester.tap(find.byKey(const Key('cycle_periodes_college')));
+    await tester.pump();
+    await attendre(tester, find.byKey(const Key('periode_nom_1')));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(nom(tester, 'periode_nom_0'), 'Trimestre 1');
+    expect(nom(tester, 'periode_nom_1'), 'Trimestre 2');
+    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
+
+    // Lycée : idem.
+    await tester.tap(find.byKey(const Key('cycle_periodes_lycee')));
+    await tester.pump();
+    await attendre(tester, find.byKey(const Key('periode_nom_1')));
+    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
+    await fin(tester);
+  });
+
+  testWidgets('enregistrer les périodes du collège ne touche ni le primaire ni '
+      'le lycée', (tester) async {
+    await demarrer(tester, onglet);
+    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await tester.tap(find.byKey(const Key('cycle_periodes_college')));
+    await tester.pump();
+    await attendre(tester, find.byKey(const Key('periode_nom_1')));
+
+    await tester.tap(find.byKey(const Key('type_semestres')));
+    await tester.pump();
+    await enregistrer(tester);
+
+    Calendrier? college;
+    for (var i = 0; i < 60 && college?.type != TypePeriodes.semestres; i++) {
+      college = await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        return etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.college);
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(college, Calendrier.semestres);
+
+    final autres = (await tester.runAsync(() async => [
+          await etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.primaire),
+          await etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.lycee),
+        ]))!;
+    expect(autres[0], Calendrier.trimestres);
+    expect(autres[1], Calendrier.deuxTrimestres);
+    await fin(tester);
+  });
+
+  testWidgets('« Autres classes » n\'apparaît que s\'il existe une classe sans '
+      'niveau', (tester) async {
+    await demarrer(tester, onglet);
+    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    expect(find.byKey(const Key('cycle_periodes_general')), findsNothing);
+    await fin(tester);
+
+    await demarrer(tester, onglet, avecClasse: true);
+    await attendre(tester, find.byKey(const Key('cycle_periodes_general')));
     await fin(tester);
   });
 }

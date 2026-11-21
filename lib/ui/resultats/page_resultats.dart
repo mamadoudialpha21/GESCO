@@ -10,6 +10,7 @@ import '../../documents/polices_pdf.dart';
 import '../../domain/arrondi.dart';
 import '../../domain/calendrier.dart';
 import '../../domain/modeles.dart';
+import '../../domain/niveaux.dart';
 import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
 import '../../domain/statistiques.dart';
@@ -24,13 +25,10 @@ import 'vue_bulletins.dart';
 enum _Vue { eleves, classes, appreciations, bulletins }
 
 class _DonneesResultats {
-  const _DonneesResultats({
-    this.calculs = const [],
-    this.calendrier = Calendrier.defaut,
-  });
+  const _DonneesResultats({this.calculs = const []});
 
+  /// Une entrée par classe ; chacune porte le calendrier de son cycle.
   final List<CalculClasse> calculs;
-  final Calendrier calendrier;
 }
 
 /// Résultats et classements : moyennes, rangs (avec ex æquo), mentions et
@@ -64,10 +62,18 @@ class PageResultats extends StatefulWidget {
   State<PageResultats> createState() => _PageResultatsState();
 }
 
+/// Clé du groupe des classes qui ne sont rattachées à aucun cycle.
+const String _sansCycle = 'autres';
+
+String _cleGroupe(CalculClasse c) => c.classe.classe.cycle?.cle ?? _sansCycle;
+
 class _PageResultatsState extends State<PageResultats> {
   _Vue _vue = _Vue.eleves;
   int? _classeId;
   String? _cle;
+
+  /// Cycle comparé dans la vue « Classes » (cycle.cle ou [_sansCycle]).
+  String? _groupe;
 
   /// Matière du classement ; null = moyenne générale.
   int? _matiereId;
@@ -76,13 +82,8 @@ class _PageResultatsState extends State<PageResultats> {
     final anneeId = widget.etat.anneeId;
     if (anneeId == null) return const _DonneesResultats();
     final services = widget.etat.services;
-    final calendrier = await services.calendriers.lire(anneeId);
-    final calculs = await chargerToutesLesClasses(
-      services,
-      anneeId,
-      calendrier: calendrier,
-    );
-    return _DonneesResultats(calculs: calculs, calendrier: calendrier);
+    final calculs = await chargerToutesLesClasses(services, anneeId);
+    return _DonneesResultats(calculs: calculs);
   }
 
   @override
@@ -146,11 +147,25 @@ class _PageResultatsState extends State<PageResultats> {
       (c) => c.classe.classe.id == _classeId,
       orElse: () => d.calculs.first,
     );
+    // Les périodes dépendent du cycle : trois trimestres au primaire, deux au
+    // collège et au lycée. La vue « Classes » ne compare que les classes d'un
+    // même cycle (donc d'un même calendrier) ; les autres vues suivent la
+    // classe choisie. Si la période choisie n'existe pas dans ce calendrier,
+    // on revient à la période en cours.
+    final groupes = <String, List<CalculClasse>>{};
+    for (final cy in [...Cycle.values.map((c) => c.cle), _sansCycle]) {
+      final liste = [for (final c in d.calculs) if (_cleGroupe(c) == cy) c];
+      if (liste.isNotEmpty) groupes[cy] = liste;
+    }
+    final groupe = groupes.containsKey(_groupe) ? _groupe! : groupes.keys.first;
+    final comparees = groupes[groupe]!;
+    final calendrier =
+        (_vue == _Vue.classes ? comparees.first : calcul).calendrier;
     final maintenant = (widget.maintenant ?? DateTime.now)();
-    final cle = (_cle != null && d.calendrier.portee(_cle!) != null)
+    final cle = (_cle != null && calendrier.portee(_cle!) != null)
         ? _cle!
-        : (d.calendrier.periodeDuMois(maintenant.month)?.cle ?? cleAnnee);
-    final portee = d.calendrier.portee(cle)!;
+        : (calendrier.periodeDuMois(maintenant.month)?.cle ?? cleAnnee);
+    final portee = calendrier.portee(cle)!;
     final matiereId =
         calcul.matieres.any((m) => m.id == _matiereId) ? _matiereId : null;
 
@@ -184,6 +199,22 @@ class _PageResultatsState extends State<PageResultats> {
               _classeId = id;
               _matiereId = null;
             }),
+          )
+        else if (groupes.length > 1)
+          SizedBox(
+            width: 220,
+            child: ChoixListe<String>(
+              cleChamp: const Key('choix_cycle_classes'),
+              libelle: 'Cycle comparé',
+              valeur: groupe,
+              options: [
+                for (final cy in groupes.keys)
+                  (cy, Cycle.depuisCle(cy)?.libelle ?? 'Autres classes'),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _groupe = v);
+              },
+            ),
           ),
         SizedBox(
           width: 220,
@@ -191,7 +222,7 @@ class _PageResultatsState extends State<PageResultats> {
             cleChamp: const Key('choix_portee'),
             libelle: 'Période',
             valeur: cle,
-            options: _optionsPortee(d.calendrier),
+            options: _optionsPortee(calendrier),
             onChanged: (v) {
               if (v != null) setState(() => _cle = v);
             },
@@ -227,13 +258,13 @@ class _PageResultatsState extends State<PageResultats> {
         if (_vue == _Vue.eleves)
           ..._vueEleves(calcul, portee, matiereId)
         else if (_vue == _Vue.classes)
-          ..._vueClasses(d.calculs, portee)
+          ..._vueClasses(comparees, portee)
         else if (_vue == _Vue.appreciations)
           VueAppreciations(
             etat: widget.etat,
             calcul: calcul,
             portee: portee,
-            periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
+            periodeLibelle: _optionsPortee(calendrier).firstWhere((o) => o.$1 == cle).$2,
           )
         else
           VueBulletins(
@@ -242,7 +273,7 @@ class _PageResultatsState extends State<PageResultats> {
             etat: widget.etat,
             calcul: calcul,
             portee: portee,
-            periodeLibelle: _optionsPortee(d.calendrier).firstWhere((o) => o.$1 == cle).$2,
+            periodeLibelle: _optionsPortee(calendrier).firstWhere((o) => o.$1 == cle).$2,
             ouvreur: widget.ouvreur,
             dossier: widget.dossierDocuments,
             chargerPolices: widget.chargerPolices,
@@ -600,7 +631,7 @@ class _LigneClasse extends StatelessWidget {
             Text(resume.classe.classe.nom, key: Key('classe_nom_$id'), overflow: TextOverflow.ellipsis),
             souple: true,
           ),
-          _cellule(Text(resume.classe.classe.niveau, overflow: TextOverflow.ellipsis), largeur: 140),
+          _cellule(Text(resume.classe.classe.libelleNiveau, overflow: TextOverflow.ellipsis), largeur: 140),
           _cellule(Text('${s.effectif}', key: Key('classe_effectif_$id')), largeur: 80),
           _cellule(Text('${s.evalues}', key: Key('classe_evalues_$id')), largeur: 80),
           _cellule(

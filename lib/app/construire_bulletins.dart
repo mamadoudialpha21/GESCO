@@ -105,7 +105,7 @@ List<Bulletin> construireBulletins({
           signature: etablissement.signatureDirecteur,
           cachet: etablissement.cachet,
           classeNom: classe.nom,
-          niveau: classe.niveau,
+          niveau: classe.libelleNiveau,
           eleveNom: e.nom,
           elevePrenom: e.prenom,
           matricule: e.matricule,

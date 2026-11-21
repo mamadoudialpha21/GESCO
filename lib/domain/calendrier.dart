@@ -10,6 +10,7 @@ library;
 
 import 'dart:convert';
 
+import 'niveaux.dart';
 import 'periodes.dart';
 
 /// Une période (trimestre, semestre...) ou une séquence.
@@ -54,7 +55,18 @@ class PeriodeScolaire {
   }
 }
 
-enum TypePeriodes { trimestres, semestres, personnalise }
+enum TypePeriodes {
+  /// Trois trimestres (octobre-décembre, janvier-mars, avril-juin).
+  trimestres,
+
+  /// Deux périodes appelées « semestres ».
+  semestres,
+
+  /// Deux trimestres (octobre-janvier, février-juin) : modèle du collège et
+  /// du lycée.
+  deuxTrimestres,
+  personnalise,
+}
 
 /// Clé réservée à la période « année entière ».
 const String cleAnnee = 'annee';
@@ -123,8 +135,27 @@ class Calendrier {
     ],
   );
 
+  /// Deux trimestres : octobre à janvier, puis février à juin. Les mois de
+  /// chaque trimestre restent modifiables dans les paramètres.
+  static const Calendrier deuxTrimestres = Calendrier(
+    type: TypePeriodes.deuxTrimestres,
+    periodes: [
+      PeriodeScolaire(cle: 't1', libelle: 'Trimestre 1', mois: [10, 11, 12, 1]),
+      PeriodeScolaire(cle: 't2', libelle: 'Trimestre 2', mois: [2, 3, 4, 5, 6]),
+    ],
+  );
+
   /// Calendrier appliqué tant que rien n'a été configuré.
   static const Calendrier defaut = trimestres;
+
+  /// Calendrier d'un cycle tant que rien n'a été configuré pour lui : trois
+  /// trimestres au primaire, deux au collège et au lycée. Sans cycle connu :
+  /// [defaut].
+  static Calendrier pourCycle(Cycle? cycle) => switch (cycle) {
+        Cycle.primaire => trimestres,
+        Cycle.college || Cycle.lycee => deuxTrimestres,
+        null => defaut,
+      };
 
   /// Séquences d'un trimestre sur deux mois (Oct-Nov, Déc-Jan...) : proposées
   /// quand on active les séquences sur un calendrier en trimestres.
@@ -320,4 +351,24 @@ class Calendrier {
     }
     return true;
   }
+}
+
+/// Calendriers d'une année scolaire : un par cycle (primaire, collège,
+/// lycée), et un calendrier général pour les classes qui ne sont rattachées à
+/// aucun cycle.
+class CalendriersAnnee {
+  const CalendriersAnnee({
+    this.general = Calendrier.defaut,
+    this.parCycle = const {},
+  });
+
+  final Calendrier general;
+
+  /// Calendriers enregistrés pour un cycle. Un cycle absent suit le modèle
+  /// de son cycle ([Calendrier.pourCycle]).
+  final Map<Cycle, Calendrier> parCycle;
+
+  /// Calendrier d'une classe selon son [cycle] (null : calendrier général).
+  Calendrier pour(Cycle? cycle) =>
+      cycle == null ? general : (parCycle[cycle] ?? Calendrier.pourCycle(cycle));
 }

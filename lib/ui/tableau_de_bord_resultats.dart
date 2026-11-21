@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../app/calcul_classe.dart';
 import '../domain/arrondi.dart';
+import '../domain/calendrier.dart';
+import '../domain/niveaux.dart';
 import '../domain/periodes.dart';
 import 'commun/composants.dart';
 import 'theme.dart';
@@ -188,9 +190,9 @@ class _CarteMoyennesClasses extends StatelessWidget {
 
   final SyntheseEtablissement synthese;
 
-  @override
-  Widget build(BuildContext context) {
-    final periodes = synthese.calendrier.periodes;
+  /// Tableau des classes d'un même calendrier : une colonne par période.
+  Widget _tableau(Calendrier calendrier, List<SyntheseClasse> classes) {
+    final periodes = calendrier.periodes;
     final largeurMin = 360.0 + 100.0 * (periodes.length + 2);
 
     Widget cellule(Widget enfant, {int flex = 1}) => Expanded(
@@ -229,7 +231,7 @@ class _CarteMoyennesClasses extends StatelessWidget {
           ],
         ),
       ),
-      for (final c in synthese.classes)
+      for (final c in classes)
         Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: const BoxDecoration(
@@ -267,6 +269,30 @@ class _CarteMoyennesClasses extends StatelessWidget {
         ),
     ];
 
+    return LayoutBuilder(
+      builder: (context, contraintes) {
+        final largeur = math.max(contraintes.maxWidth, largeurMin);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(width: largeur, child: Column(children: lignes)),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Une classe suit le calendrier de son cycle (trois trimestres au
+    // primaire, deux au collège et au lycée) : les classes sont présentées par
+    // cycle, chacun avec ses propres colonnes de périodes.
+    final groupes = <Cycle?, List<SyntheseClasse>>{};
+    for (final cycle in <Cycle?>[...Cycle.values, null]) {
+      final liste = [
+        for (final c in synthese.classes)
+          if (c.classe.classe.cycle == cycle) c,
+      ];
+      if (liste.isNotEmpty) groupes[cycle] = liste;
+    }
     return Carte(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -277,15 +303,21 @@ class _CarteMoyennesClasses extends StatelessWidget {
             'Moyenne des élèves évalués pour chaque période, puis pour l\'année, '
                 'et taux de réussite de l\'année.',
           ),
-          LayoutBuilder(
-            builder: (context, contraintes) {
-              final largeur = math.max(contraintes.maxWidth, largeurMin);
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(width: largeur, child: Column(children: lignes)),
-              );
-            },
-          ),
+          for (final entree in groupes.entries) ...[
+            if (groupes.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 6),
+                child: Text(
+                  entree.key?.libelle ?? 'Autres classes',
+                  key: Key('dash_cycle_${entree.key?.cle ?? 'autres'}'),
+                  style: const TextStyle(
+                    color: CouleursGesco.bleu,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            _tableau(entree.value.first.calendrier, entree.value),
+          ],
         ],
       ),
     );

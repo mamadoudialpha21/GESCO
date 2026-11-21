@@ -125,6 +125,18 @@ class AnneeDepot {
             'json': calendrier.first['json'],
           });
         }
+        final parCycle = await txn.query(
+          'config_calendrier_cycle',
+          where: 'annee_id = ?',
+          whereArgs: [copierDepuisAnneeId],
+        );
+        for (final ligne in parCycle) {
+          await txn.insert('config_calendrier_cycle', {
+            'annee_id': nouvelle,
+            'cycle': ligne['cycle'],
+            'json': ligne['json'],
+          });
+        }
       }
       if (premiere || activer) {
         await _activer(txn, nouvelle);
@@ -324,6 +336,8 @@ class AnneeDepot {
       final nouvelleClasse = await db.insert('classe', {
         'annee_id': cible,
         'niveau': c['niveau'],
+        'niveau_code': c['niveau_code'],
+        'serie': c['serie'],
         'nom': c['nom'],
         'capacite': c['capacite'],
         'prof_principal_id': c['prof_principal_id'],

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../domain/modeles.dart';
+import '../domain/niveaux.dart';
 
 /// Informations de l'établissement (une seule fiche dans la base).
 class Etablissement {
@@ -101,12 +102,15 @@ class Classe {
     required this.nom,
     this.capacite,
     this.profPrincipalId,
+    this.niveauCode,
+    this.serie,
   });
 
   final int id;
   final int anneeId;
 
-  /// Niveau d'études (« 10e année », « Terminale »...). Peut être vide.
+  /// Niveau d'études écrit (« 10ème année », « Terminale »...). Peut être
+  /// vide. Pour une classe rattachée au catalogue, c'est le nom du niveau.
   final String niveau;
   final String nom;
 
@@ -115,6 +119,26 @@ class Classe {
 
   /// Enseignant responsable de la classe, ou null.
   final int? profPrincipalId;
+
+  /// Niveau du catalogue (1 à 13, 13 = Terminale), ou null.
+  final int? niveauCode;
+
+  /// Option du lycée, ou null.
+  final SerieLycee? serie;
+
+  /// Niveau du catalogue, ou null si la classe n'y est pas rattachée.
+  NiveauScolaire? get niveauScolaire => niveauDeCode(niveauCode);
+
+  /// Cycle (primaire, collège, lycée), ou null : la classe suit alors le
+  /// calendrier général de l'année.
+  Cycle? get cycle => niveauScolaire?.cycle;
+
+  /// Niveau à afficher : « Terminale · Sciences mathématiques », ou le
+  /// texte saisi pour une classe hors catalogue.
+  String get libelleNiveau {
+    final n = niveauScolaire;
+    return n == null ? niveau : libelleNiveauComplet(n, serie);
+  }
 }
 
 /// Une classe avec ses effectifs, pour les listes.

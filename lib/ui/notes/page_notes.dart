@@ -204,7 +204,10 @@ class _VueSaisieState extends State<VueSaisie> {
       casesEvaluees: effectives.casesEvaluees,
       moisVerrouilles: await services.notes.moisVerrouilles(id),
       config: config,
-      calendrier: await services.calendriers.lire(anneeId),
+      calendrier: await services.calendriers.lire(
+        anneeId,
+        cycle: choisie.classe.cycle,
+      ),
     );
   }
 
@@ -269,7 +272,8 @@ class _VueSaisieState extends State<VueSaisie> {
       );
     }
 
-    // La période choisie suit le calendrier de l'année : si elle n'existe plus
+    // La période choisie suit le calendrier de la classe (celui de son cycle) :
+    // si elle n'existe plus
     // (séquences désactivées...), on revient au mois courant.
     final periodes = periodesDuCalendrier(d.calendrier);
     final periode = periodes.firstWhere(

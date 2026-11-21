@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
 import '../../domain/calendrier.dart';
+import '../../domain/niveaux.dart';
 import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
 import '../commun/chargeur.dart';
@@ -11,14 +12,35 @@ import '../theme.dart';
 
 /// Découpage de l'année en périodes (trimestres, semestres ou personnalisé),
 /// séquences facultatives et affichage des moyennes mensuelles. Propre à
-/// chaque année scolaire.
-class OngletPeriodes extends StatelessWidget {
+/// chaque année scolaire et à chaque cycle d'études : le primaire a trois
+/// trimestres, le collège et le lycée deux.
+class OngletPeriodes extends StatefulWidget {
   const OngletPeriodes({super.key, required this.etat});
 
   final EtatApp etat;
 
   @override
+  State<OngletPeriodes> createState() => _OngletPeriodesState();
+}
+
+/// Clé du calendrier général (classes sans cycle).
+const String _cleGeneral = 'general';
+
+class _DonneesPeriodes {
+  const _DonneesPeriodes(this.calendrier, this.autresClasses);
+
+  final Calendrier calendrier;
+
+  /// Vrai si une classe de l'année n'est rattachée à aucun cycle.
+  final bool autresClasses;
+}
+
+class _OngletPeriodesState extends State<OngletPeriodes> {
+  String _cycle = Cycle.primaire.cle;
+
+  @override
   Widget build(BuildContext context) {
+    final etat = widget.etat;
     final anneeId = etat.anneeId;
     if (anneeId == null) {
       return const MessageVide(
@@ -26,17 +48,28 @@ class OngletPeriodes extends StatelessWidget {
         icone: Icons.event_outlined,
       );
     }
-    return Chargeur<Calendrier>(
-      cle: (anneeId, etat.version),
-      charger: () => etat.services.calendriers.lire(anneeId),
-      builder: (context, calendrier) => _EditeurPeriodes(
+    final cycle = Cycle.depuisCle(_cycle);
+    return Chargeur<_DonneesPeriodes>(
+      cle: (anneeId, etat.version, _cycle),
+      charger: () async {
+        final services = etat.services;
+        final classes = await services.classes.lister(anneeId);
+        return _DonneesPeriodes(
+          await services.calendriers.lire(anneeId, cycle: cycle),
+          classes.any((c) => c.classe.cycle == null),
+        );
+      },
+      builder: (context, donnees) => _EditeurPeriodes(
         // La clé suit les données réellement chargées (et non le compteur de
         // version) : après un enregistrement, l'éditeur repart de la base dès
         // que la relecture est terminée, jamais des anciennes valeurs.
-        key: ValueKey('periodes-$anneeId-${identityHashCode(calendrier)}'),
+        key: ValueKey('periodes-$anneeId-$_cycle-${identityHashCode(donnees)}'),
         etat: etat,
         anneeId: anneeId,
-        calendrier: calendrier,
+        calendrier: donnees.calendrier,
+        cycle: cycle,
+        autresClasses: donnees.autresClasses,
+        surCycle: (cle) => setState(() => _cycle = cle),
       ),
     );
   }
@@ -61,11 +94,19 @@ class _EditeurPeriodes extends StatefulWidget {
     required this.etat,
     required this.anneeId,
     required this.calendrier,
+    required this.cycle,
+    required this.autresClasses,
+    required this.surCycle,
   });
 
   final EtatApp etat;
   final int anneeId;
   final Calendrier calendrier;
+
+  /// Cycle dont on règle les périodes ; null : calendrier général.
+  final Cycle? cycle;
+  final bool autresClasses;
+  final void Function(String cle) surCycle;
 
   @override
   State<_EditeurPeriodes> createState() => _EditeurPeriodesState();
@@ -110,6 +151,7 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
       _type = type;
       final modele = switch (type) {
         TypePeriodes.trimestres => Calendrier.trimestres,
+        TypePeriodes.deuxTrimestres => Calendrier.deuxTrimestres,
         TypePeriodes.semestres => Calendrier.semestres,
         TypePeriodes.personnalise => null,
       };
@@ -197,6 +239,8 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
     );
   }
 
+  static String _nomCycle(Cycle? cycle) => cycle?.libelle ?? 'autres classes';
+
   Future<void> _enregistrer() async {
     final calendrier = _calendrier();
     final erreurs = calendrier.erreurs();
@@ -206,8 +250,10 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
     }
     final ok = await executer(
       context,
-      () => widget.etat.services.calendriers.enregistrer(widget.anneeId, calendrier),
-      succes: 'Périodes enregistrées pour cette année scolaire.',
+      () => widget.etat.services.calendriers
+          .enregistrer(widget.anneeId, calendrier, cycle: widget.cycle),
+      succes: 'Périodes enregistrées (${_nomCycle(widget.cycle)}) pour cette '
+          'année scolaire.',
     );
     if (ok) widget.etat.donneesModifiees();
   }
@@ -222,8 +268,8 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
         TitreSection(
           'Périodes',
           sousTitre: 'Découpage de l\'année ${annee?.libelle ?? ''} : les moyennes '
-              'des périodes et de l\'année en découlent. Les notes déjà saisies '
-              'ne sont jamais modifiées.',
+              'des périodes et de l\'année en découlent. Chaque cycle a son '
+              'propre découpage. Les notes déjà saisies ne sont jamais modifiées.',
         ),
         const SizedBox(height: 16),
         Align(
@@ -234,6 +280,35 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _carte(
+                  titre: 'Cycle d\'études',
+                  aide: 'Primaire : 1ère à 6ème année, trois trimestres. Collège : '
+                      '7ème à 10ème année, deux trimestres. Lycée : 11ème année à '
+                      'Terminale, deux trimestres. Changer de cycle abandonne les '
+                      'modifications non enregistrées.',
+                  enfants: [
+                    SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      segments: [
+                        for (final c in Cycle.values)
+                          ButtonSegment(
+                            value: c.cle,
+                            label: Text(c.libelle, key: Key('cycle_periodes_${c.cle}')),
+                          ),
+                        if (widget.autresClasses || widget.cycle == null)
+                          const ButtonSegment(
+                            value: _cleGeneral,
+                            label: Text(
+                              'Autres classes',
+                              key: Key('cycle_periodes_general'),
+                            ),
+                          ),
+                      ],
+                      selected: {widget.cycle?.cle ?? _cleGeneral},
+                      onSelectionChanged: (choix) => widget.surCycle(choix.first),
+                    ),
+                  ],
+                ),
+                _carte(
                   titre: 'Type de périodes',
                   aide: 'Chaque mois (octobre à juin) appartient à une seule période.',
                   enfants: [
@@ -243,6 +318,10 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
                         ButtonSegment(
                           value: TypePeriodes.trimestres,
                           label: Text('Trois trimestres', key: Key('type_trimestres')),
+                        ),
+                        ButtonSegment(
+                          value: TypePeriodes.deuxTrimestres,
+                          label: Text('Deux trimestres', key: Key('type_deux_trimestres')),
                         ),
                         ButtonSegment(
                           value: TypePeriodes.semestres,

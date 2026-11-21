@@ -1,5 +1,6 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../../domain/niveaux.dart';
 import '../../domain/permissions.dart';
 import '../controle.dart';
 import '../erreurs.dart';
@@ -20,13 +21,16 @@ class ClasseDepot {
         nom: l['nom'] as String,
         capacite: l['capacite'] as int?,
         profPrincipalId: l['prof_principal_id'] as int?,
+        niveauCode: l['niveau_code'] as int?,
+        serie: SerieLycee.depuisCode(l['serie'] as String?),
       );
 
   /// Classes d'une année avec leur nombre de matières et d'élèves.
   Future<List<ClasseResume>> lister(int anneeId) async {
     final lignes = await _db.rawQuery(
       '''
-      SELECT c.id, c.annee_id, c.niveau, c.nom, c.capacite, c.prof_principal_id,
+      SELECT c.id, c.annee_id, c.niveau, c.niveau_code, c.serie, c.nom, c.capacite,
+        c.prof_principal_id,
         (SELECT TRIM(ens.nom || ' ' || ens.prenom) FROM enseignant ens
           WHERE ens.id = c.prof_principal_id) AS prof_nom,
         (SELECT COUNT(*) FROM matiere_classe m WHERE m.classe_id = c.id)
@@ -43,7 +47,8 @@ class ClasseDepot {
           AS nb_garcons
       FROM classe c
       WHERE c.annee_id = ?
-      ORDER BY c.niveau COLLATE NOCASE, c.nom COLLATE NOCASE
+      ORDER BY (c.niveau_code IS NULL), c.niveau_code, c.serie,
+        c.niveau COLLATE NOCASE, c.nom COLLATE NOCASE
       ''',
       [anneeId],
     );
@@ -66,15 +71,21 @@ class ClasseDepot {
     return lignes.isEmpty ? null : _depuis(lignes.first);
   }
 
+  /// Crée une classe. [niveauCode] la rattache au catalogue des niveaux
+  /// (1re année à Terminale) : le texte de [niveau] est alors remplacé par le
+  /// nom du niveau et la classe suit le calendrier de son cycle. [serie]
+  /// (option du lycée) n'est possible que de la 11e année à la Terminale.
   Future<Classe> creer({
     required int anneeId,
     required String nom,
     String niveau = '',
+    int? niveauCode,
+    SerieLycee? serie,
     ReglagesClasse reglages = const ReglagesClasse(),
   }) async {
     controle.exiger(Permission.classesGerer, 'créer une classe');
     final nomValide = _nomValide(nom);
-    final niveauValide = _niveauValide(niveau);
+    final niveauValide = _texteDuNiveau(niveau, niveauCode, serie);
     _verifierCapacite(reglages.capacite);
     final classe = await _db.transaction<Classe>((txn) async {
       final annee = await compter(
@@ -88,6 +99,8 @@ class ClasseDepot {
       final id = await txn.insert('classe', {
         'annee_id': anneeId,
         'niveau': niveauValide,
+        'niveau_code': niveauCode,
+        'serie': serie?.code ?? '',
         'nom': nomValide,
         'capacite': reglages.capacite,
         'prof_principal_id': reglages.profPrincipalId,
@@ -99,21 +112,27 @@ class ClasseDepot {
         nom: nomValide,
         capacite: reglages.capacite,
         profPrincipalId: reglages.profPrincipalId,
+        niveauCode: niveauCode,
+        serie: serie,
       );
     });
     await controle.noter('creation', 'classe', id: classe.id, details: nomValide);
     return classe;
   }
 
+  /// Modifie une classe. Comme à la création, [niveauCode] et [serie]
+  /// remplacent ceux de la classe (null = classe hors catalogue / sans option).
   Future<void> modifier(
     int id, {
     required String nom,
     required String niveau,
+    int? niveauCode,
+    SerieLycee? serie,
     ReglagesClasse? reglages,
   }) async {
     controle.exiger(Permission.classesGerer, 'modifier une classe');
     final nomValide = _nomValide(nom);
-    final niveauValide = _niveauValide(niveau);
+    final niveauValide = _texteDuNiveau(niveau, niveauCode, serie);
     if (reglages != null) _verifierCapacite(reglages.capacite);
     await _db.transaction<void>((txn) async {
       final lignes = await txn.query(
@@ -146,6 +165,8 @@ class ClasseDepot {
         {
           'nom': nomValide,
           'niveau': niveauValide,
+          'niveau_code': niveauCode,
+          'serie': serie?.code ?? '',
           if (reglages != null) 'capacite': reglages.capacite,
           if (reglages != null) 'prof_principal_id': reglages.profPrincipalId,
         },
@@ -202,6 +223,33 @@ class ClasseDepot {
       throw const ErreurGesco('Le nom de la classe est trop long (60 caractères maximum).');
     }
     return n;
+  }
+
+  /// Vérifie le niveau du catalogue et l'option, et donne le texte du niveau
+  /// à enregistrer.
+  static String _texteDuNiveau(
+    String niveau,
+    int? niveauCode,
+    SerieLycee? serie,
+  ) {
+    if (niveauCode == null) {
+      if (serie != null) {
+        throw const ErreurGesco(
+          'Choisissez le niveau (11e année, 12e année ou Terminale) avant '
+          'l\'option du lycée.',
+        );
+      }
+      return _niveauValide(niveau);
+    }
+    final n = niveauDeCode(niveauCode);
+    if (n == null) throw const ErreurGesco('Niveau inconnu.');
+    if (serie != null && !n.aDesOptions) {
+      throw ErreurGesco(
+        'Une option (${serie.libelle}) n\'existe que pour le lycée : '
+        '11e année, 12e année et Terminale. ${n.libelle} n\'en a pas.',
+      );
+    }
+    return n.libelle;
   }
 
   static String _niveauValide(String niveau) {

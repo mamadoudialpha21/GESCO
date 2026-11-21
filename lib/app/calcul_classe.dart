@@ -66,8 +66,9 @@ class CalculClasse {
 
 /// Charge une classe avec ses notes (notes du mois et évaluations).
 ///
-/// [config] et [calendrier] sont ceux de l'année : ils sont lus une seule fois
-/// par l'appelant quand plusieurs classes sont chargées.
+/// [config] est celui de l'année et [calendrier] celui du cycle de la classe :
+/// ils sont lus une seule fois par l'appelant quand plusieurs classes sont
+/// chargées.
 Future<CalculClasse> chargerCalculClasse(
   Services services,
   ClasseResume classe, {
@@ -90,19 +91,27 @@ Future<CalculClasse> chargerCalculClasse(
 }
 
 /// Charge toutes les classes d'une année (dans l'ordre de la liste des classes).
+///
+/// Chaque classe suit le calendrier de son cycle : trois trimestres au
+/// primaire, deux au collège et au lycée (sauf réglage contraire).
 Future<List<CalculClasse>> chargerToutesLesClasses(
   Services services,
   int anneeId, {
   List<ClasseResume>? classes,
   ConfigResultats? config,
-  Calendrier? calendrier,
+  CalendriersAnnee? calendriers,
 }) async {
   final liste = classes ?? await services.classes.lister(anneeId);
   final cfg = config ?? await services.configs.lire(anneeId);
-  final cal = calendrier ?? await services.calendriers.lire(anneeId);
+  final cals = calendriers ?? await services.calendriers.lireTous(anneeId);
   return [
     for (final c in liste)
-      await chargerCalculClasse(services, c, config: cfg, calendrier: cal),
+      await chargerCalculClasse(
+        services,
+        c,
+        config: cfg,
+        calendrier: cals.pour(c.classe.cycle),
+      ),
   ];
 }
 
@@ -288,12 +297,17 @@ class SyntheseClasse {
     required this.moyennesPeriodes,
     required this.moyennesMensuelles,
     required this.annee,
+    this.calendrier = Calendrier.defaut,
   });
 
   final ClasseResume classe;
 
-  /// Moyenne de la classe pour chaque période du calendrier (même ordre que
-  /// [Calendrier.periodes]) ; null si personne n'est évalué.
+  /// Calendrier de la classe (celui de son cycle).
+  final Calendrier calendrier;
+
+  /// Moyenne de la classe pour chaque période du calendrier de la classe
+  /// (même ordre que [Calendrier.periodes] de [calendrier]) ; null si
+  /// personne n'est évalué.
   final List<int?> moyennesPeriodes;
 
   /// Moyenne de la classe pour chaque mois, d'octobre à juin ([moisScolaires]).
@@ -309,7 +323,7 @@ class SyntheseClasse {
 /// Résultats de tout l'établissement sur l'année, pour le tableau de bord.
 class SyntheseEtablissement {
   const SyntheseEtablissement({
-    required this.calendrier,
+    this.calendrier = Calendrier.defaut,
     required this.config,
     required this.classes,
     required this.moyenneGenerale,
@@ -319,6 +333,8 @@ class SyntheseEtablissement {
     required this.meilleurs,
   });
 
+  /// Calendrier général (classes sans cycle). Les autres classes ont le leur,
+  /// dans [SyntheseClasse.calendrier].
   final Calendrier calendrier;
   final ConfigResultats config;
   final List<SyntheseClasse> classes;
@@ -344,7 +360,7 @@ class SyntheseEtablissement {
 /// (les ex æquo restent ensemble), dans la limite de deux fois ce nombre.
 SyntheseEtablissement synthetiserEtablissement(
   List<CalculClasse> calculs, {
-  required Calendrier calendrier,
+  Calendrier calendrier = Calendrier.defaut,
   required ConfigResultats config,
   int nbMeilleurs = 5,
 }) {
@@ -359,8 +375,9 @@ SyntheseEtablissement synthetiserEtablissement(
     final resultats = c.resultats(annee);
     classes.add(SyntheseClasse(
       classe: c.classe,
+      calendrier: c.calendrier,
       moyennesPeriodes: [
-        for (final p in calendrier.periodes) c.stats(Portee.periode(p)).moyenneClasse,
+        for (final p in c.calendrier.periodes) c.stats(Portee.periode(p)).moyenneClasse,
       ],
       moyennesMensuelles: [
         for (final m in moisScolaires) c.stats(Portee.mois(m)).moyenneClasse,

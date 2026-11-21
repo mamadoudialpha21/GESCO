@@ -77,17 +77,17 @@ class PageTableauDeBord extends StatelessWidget {
         SyntheseEtablissement? synthese;
         if (nbNotes > 0 && classes.isNotEmpty && etat.peut(Permission.resultatsVoir)) {
           final config = await services.configs.lire(anneeId);
-          final calendrier = await services.calendriers.lire(anneeId);
+          final calendriers = await services.calendriers.lireTous(anneeId);
           final calculs = await chargerToutesLesClasses(
             services,
             anneeId,
             classes: classes,
             config: config,
-            calendrier: calendrier,
+            calendriers: calendriers,
           );
           synthese = synthetiserEtablissement(
             calculs,
-            calendrier: calendrier,
+            calendrier: calendriers.general,
             config: config,
           );
         }

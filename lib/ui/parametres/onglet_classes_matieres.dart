@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/etat_app.dart';
 import '../../data/depots/classe_depot.dart';
 import '../../data/modeles_donnees.dart';
-import '../../domain/permissions.dart';
 import '../../domain/arrondi.dart';
+import '../../domain/calendrier.dart';
+import '../../domain/niveaux.dart';
+import '../../domain/permissions.dart';
 import '../commun/chargeur.dart';
+import '../commun/choix.dart';
 import '../commun/composants.dart';
 import '../commun/dialogues.dart';
 import '../theme.dart';
@@ -105,6 +108,8 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
           anneeId: anneeId,
           nom: saisie.nom,
           niveau: saisie.niveau,
+          niveauCode: saisie.niveauCode,
+          serie: saisie.serie,
           reglages: ReglagesClasse(
             capacite: saisie.capacite,
             profPrincipalId: saisie.profPrincipalId,
@@ -135,6 +140,8 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
         classe.id,
         nom: saisie.nom,
         niveau: saisie.niveau,
+        niveauCode: saisie.niveauCode,
+        serie: saisie.serie,
         reglages: ReglagesClasse(
           capacite: saisie.capacite,
           profPrincipalId: saisie.profPrincipalId,
@@ -398,7 +405,9 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
 
   String _sousTitreClasse(ClasseResume r) {
     final morceaux = <String>[];
-    if (r.classe.niveau.isNotEmpty) morceaux.add(r.classe.niveau);
+    final cycle = r.classe.cycle;
+    if (cycle != null) morceaux.add(cycle.libelle);
+    if (r.classe.libelleNiveau.isNotEmpty) morceaux.add(r.classe.libelleNiveau);
     morceaux.add('${r.nbMatieres} matière${r.nbMatieres > 1 ? 's' : ''}');
     final partis = r.nbEleves - r.nbActifs;
     var eleves = '${r.nbActifs} élève${r.nbActifs > 1 ? 's' : ''}'
@@ -559,10 +568,23 @@ class _OngletClassesMatieresState extends State<OngletClassesMatieres> {
 // ---------------------------------------------------------------- Dialogues
 
 class _SaisieClasse {
-  const _SaisieClasse(this.nom, this.niveau, this.capacite, this.profPrincipalId);
+  const _SaisieClasse(
+    this.nom,
+    this.niveau,
+    this.niveauCode,
+    this.serie,
+    this.capacite,
+    this.profPrincipalId,
+  );
 
   final String nom;
+
+  /// Niveau écrit à la main (utilisé seulement sans [niveauCode]).
   final String niveau;
+
+  /// Niveau du catalogue (1 à 13), ou null pour « autre niveau ».
+  final int? niveauCode;
+  final SerieLycee? serie;
   final int? capacite;
   final int? profPrincipalId;
 }
@@ -631,11 +653,29 @@ class _DialogueClasseState extends State<_DialogueClasse> {
   String? _erreur;
   String? _erreurCapacite;
 
+  /// Niveau du catalogue choisi (0 = autre niveau, saisi à la main).
+  int _niveauCode = 0;
+  SerieLycee? _serie;
+
+  /// Dernier nom proposé automatiquement : tant que le nom saisi lui est égal
+  /// (ou vide), un changement de niveau ou d'option le met à jour.
+  String _nomPropose = '';
+
   @override
   void initState() {
     super.initState();
-    _nom = TextEditingController(text: widget.existante?.nom ?? '');
-    _niveau = TextEditingController(text: widget.existante?.niveau ?? '');
+    final e = widget.existante;
+    _nom = TextEditingController(text: e?.nom ?? '');
+    _niveau = TextEditingController(text: e?.niveau ?? '');
+    // Une classe créée avant le catalogue : on propose le niveau reconnu dans
+    // son texte (« 10e année » -> 10ème année) ; l'utilisateur peut le changer.
+    if (e != null) {
+      _niveauCode = e.niveauCode ?? devinerNiveau(e.niveau)?.code ?? 0;
+      _serie = e.serie ??
+          (niveauDeCode(_niveauCode)?.aDesOptions == true
+              ? devinerSerie('${e.niveau} ${e.nom}')
+              : null);
+    }
     final capacite = widget.existante?.capacite;
     _capacite = TextEditingController(text: capacite == null ? '' : '$capacite');
     _profPrincipalId = widget.existante?.profPrincipalId;
@@ -647,6 +687,35 @@ class _DialogueClasseState extends State<_DialogueClasse> {
     _niveau.dispose();
     _capacite.dispose();
     super.dispose();
+  }
+
+  NiveauScolaire? get _niveauChoisi => niveauDeCode(_niveauCode);
+
+  void _choisirNiveau(int? code) {
+    setState(() {
+      _niveauCode = code ?? 0;
+      final n = _niveauChoisi;
+      if (n == null || !n.aDesOptions) _serie = null;
+      _proposerNom();
+    });
+  }
+
+  void _choisirSerie(String? code) {
+    setState(() {
+      _serie = SerieLycee.depuisCode(code);
+      _proposerNom();
+    });
+  }
+
+  void _proposerNom() {
+    final n = _niveauChoisi;
+    if (n == null) return;
+    final nom = _nom.text.trim();
+    if (nom.isEmpty || nom == _nomPropose) {
+      _nomPropose = nomProposeDeClasse(n, _serie);
+      _nom.text = _nomPropose;
+      _nom.selection = TextSelection.collapsed(offset: _nom.text.length);
+    }
   }
 
   void _valider() {
@@ -666,8 +735,16 @@ class _DialogueClasseState extends State<_DialogueClasse> {
       _erreurCapacite = erreurCapacite;
     });
     if (nom.isEmpty || erreurCapacite != null) return;
+    final catalogue = _niveauChoisi;
     Navigator.of(context).pop(
-      _SaisieClasse(nom, _niveau.text.trim(), capacite, _profPrincipalId),
+      _SaisieClasse(
+        nom,
+        catalogue == null ? _niveau.text.trim() : catalogue.libelle,
+        catalogue?.code,
+        catalogue?.aDesOptions == true ? _serie : null,
+        capacite,
+        _profPrincipalId,
+      ),
     );
   }
 
@@ -681,16 +758,53 @@ class _DialogueClasseState extends State<_DialogueClasse> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ChoixListe<int>(
+                cleChamp: const Key('choix_niveau_classe'),
+                libelle: 'Niveau d\'études',
+                valeur: _niveauCode,
+                options: [
+                  for (final c in Cycle.values)
+                    for (final n in niveauxDuCycle(c)) (n.code, '${n.libelle} · ${c.libelle}'),
+                  (0, 'Autre niveau (saisie libre)'),
+                ],
+                onChanged: _choisirNiveau,
+                aide: _niveauChoisi == null
+                    ? 'Sans niveau du catalogue, la classe suit le calendrier général.'
+                    : 'Cycle ${_niveauChoisi!.cycle.libelle} : '
+                        '${Calendrier.pourCycle(_niveauChoisi!.cycle).periodes.length} '
+                        'trimestres par défaut.',
+              ),
+              if (_niveauChoisi == null) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  key: const Key('niveau_libre_classe'),
+                  controller: _niveau,
+                  decoration: champ('Niveau (facultatif)', aide: 'Exemple : Maternelle'),
+                  textInputAction: TextInputAction.next,
+                ),
+              ],
+              if (_niveauChoisi?.aDesOptions == true) ...[
+                const SizedBox(height: 16),
+                ChoixListe<String>(
+                  cleChamp: const Key('choix_serie_classe'),
+                  libelle: 'Option (série)',
+                  valeur: _serie?.code ?? '',
+                  options: [
+                    ('', 'Non précisée'),
+                    for (final s in SerieLycee.values) (s.code, s.libelle),
+                  ],
+                  onChanged: _choisirSerie,
+                ),
+              ],
+              const SizedBox(height: 16),
               TextField(
                 controller: _nom,
                 autofocus: true,
-                decoration: champ('Nom de la classe', aide: 'Exemple : 10e A', erreur: _erreur),
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _niveau,
-                decoration: champ('Niveau d\'études (facultatif)', aide: 'Exemple : 10e année'),
+                decoration: champ(
+                  'Nom de la classe',
+                  aide: 'Exemple : 7e A, Tle SM',
+                  erreur: _erreur,
+                ),
                 textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 16),
@@ -789,6 +903,35 @@ class _DialogueMatiereState extends State<_DialogueMatiere> {
     _coefficient.dispose();
     _bareme.dispose();
     super.dispose();
+  }
+
+  NiveauScolaire? get _niveauChoisi => niveauDeCode(_niveauCode);
+
+  void _choisirNiveau(int? code) {
+    setState(() {
+      _niveauCode = code ?? 0;
+      final n = _niveauChoisi;
+      if (n == null || !n.aDesOptions) _serie = null;
+      _proposerNom();
+    });
+  }
+
+  void _choisirSerie(String? code) {
+    setState(() {
+      _serie = SerieLycee.depuisCode(code);
+      _proposerNom();
+    });
+  }
+
+  void _proposerNom() {
+    final n = _niveauChoisi;
+    if (n == null) return;
+    final nom = _nom.text.trim();
+    if (nom.isEmpty || nom == _nomPropose) {
+      _nomPropose = nomProposeDeClasse(n, _serie);
+      _nom.text = _nomPropose;
+      _nom.selection = TextSelection.collapsed(offset: _nom.text.length);
+    }
   }
 
   void _valider() {

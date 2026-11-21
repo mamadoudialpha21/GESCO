@@ -2,6 +2,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'schema.dart';
 import 'schema_v2.dart';
+import 'schema_v3.dart';
 
 /// Accès à la base SQLite locale de GESCO.
 ///
@@ -14,13 +15,17 @@ class GescoDatabase {
 
   /// Version courante du schéma. À incrémenter à chaque changement, avec
   /// l'ajout de la migration correspondante dans [migrations].
-  static const int versionSchema = 2;
+  static const int versionSchema = 3;
 
   /// Migrations : version cible -> étapes à appliquer pour l'atteindre.
   /// Une base neuve est créée en version 1 puis passe par les mêmes
   /// migrations qu'une base existante : les deux ont donc le même schéma.
   static final Map<int, Future<void> Function(Database)> migrations = {
     2: (db) => _executerTout(db, migrationV2),
+    3: (db) async {
+      await _executerTout(db, migrationV3);
+      await rattraperNiveaux(db);
+    },
   };
 
   static Future<void> _executerTout(Database db, List<String> instructions) async {
