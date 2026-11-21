@@ -27,7 +27,7 @@ dependencies:
   pdf: ^3.11.1
   # Lecture et écriture des classeurs Excel (.xlsx) pour l'import et l'export :
   # bibliothèque pure Dart, sans réseau.
-  excel: ^5.0.0
+  excel: ^4.0.6
 
 dev_dependencies:
   flutter_test:
