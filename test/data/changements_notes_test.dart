@@ -73,10 +73,10 @@ void main() {
   test('une saisie refusée ne signale rien', () async {
     await expectLater(
       s.notes.enregistrer(
-        inscriptionId: eleve,
+        inscriptionId: 999999, // élève inexistant
         matiereId: matiere,
         mois: 11,
-        saisie: const Saisie.valeur(2500),
+        saisie: const Saisie.valeur(1000),
       ),
       throwsA(isA<ErreurGesco>()),
     );

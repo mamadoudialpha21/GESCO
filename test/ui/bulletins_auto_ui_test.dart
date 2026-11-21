@@ -141,6 +141,9 @@ void main() {
   String texte(WidgetTester tester, String cle) =>
       tester.widget<Text>(find.byKey(Key(cle))).data!;
 
+  String texteSelectionnable(WidgetTester tester, String cle) =>
+      tester.widget<SelectableText>(find.byKey(Key(cle))).data!;
+
   bool interrupteur(WidgetTester tester) =>
       tester.widget<Switch>(find.byKey(const Key('auto_bulletins_actif'))).value;
 
@@ -176,7 +179,7 @@ void main() {
     await ouvrirOnglet(tester);
 
     expect(interrupteur(tester), isTrue);
-    expect(texte(tester, 'auto_bulletins_dossier'), p.join(racine.path, 'Bulletins'));
+    expect(texteSelectionnable(tester, 'auto_bulletins_dossier'), p.join(racine.path, 'Bulletins'));
     expect(texte(tester, 'auto_bulletins_texte'), contains('2 trimestres'));
     expect(find.text('Tout générer : Trimestre 1'), findsOneWidget);
     expect(find.byKey(const Key('auto_bulletins_resume')), findsNothing);
