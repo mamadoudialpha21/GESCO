@@ -13,13 +13,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gesco/app/bulletins_auto.dart';
 import 'package:gesco/app/etat_app.dart';
 import 'package:gesco/app/services.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/domain/modeles.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:gesco/main.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+import '../test/documents/exemples.dart' as exemples;
 
 const String dossierSortie = 'captures';
 
@@ -85,11 +89,34 @@ Future<void> semer(Services s) async {
       ('Traoré', 'Ousmane', 'M'),
       ('Fofana', 'Nene', 'F'),
     ],
+    'CE2 A': [
+      ('Kourouma', 'Fanta', 'F'),
+      ('Bangoura', 'Lansana', 'M'),
+      ('Camara', 'Mariam', 'F'),
+    ],
+    'Tle SM': [
+      ('Diakité', 'Mohamed', 'M'),
+      ('Sidibé', 'Kadiatou', 'F'),
+      ('Cissé', 'Abdoulaye', 'M'),
+    ],
+  };
+  // Niveau du catalogue et option du lycée de chaque classe.
+  const niveaux = <String, (int, SerieLycee?)>{
+    '10e A': (10, null),
+    '10e B': (10, null),
+    '9e A': (9, null),
+    'CE2 A': (3, null),
+    'Tle SM': (13, SerieLycee.sciencesMathematiques),
   };
 
   var numero = 0;
   for (final entree in eleves.entries) {
-    final classe = await s.classes.creer(anneeId: annee.id, nom: entree.key);
+    final classe = await s.classes.creer(
+      anneeId: annee.id,
+      nom: entree.key,
+      niveauCode: niveaux[entree.key]!.$1,
+      serie: niveaux[entree.key]!.$2,
+    );
     final matieresClasse = <MatiereClasse>[];
     for (final m in matieres) {
       matieresClasse.add(
@@ -151,7 +178,16 @@ void main() {
         ));
     final services = Services(gdb!);
     await tester.runAsync(() => semer(services));
-    final etat = EtatApp(services, chemin: 'en mémoire');
+    final dossierBulletins = Directory.systemTemp.createTempSync('gesco_captures_');
+    final etat = EtatApp(
+      services,
+      chemin: 'en mémoire',
+      bulletinsAuto: BulletinsAuto(
+        services: services,
+        dossierRacine: () async => dossierBulletins,
+        chargerPolices: () async => exemples.polices(),
+      ),
+    );
     await tester.runAsync(etat.charger);
 
     final cle = GlobalKey();
@@ -202,6 +238,10 @@ void main() {
       await attendre();
     }
 
+    Future<void> toucherSiPresent(Finder f) async {
+      if (f.evaluate().isNotEmpty) await toucher(f);
+    }
+
     await taille(1280, 860);
     await tester.pumpWidget(RepaintBoundary(key: cle, child: GescoApp(etat: etat)));
 
@@ -217,6 +257,39 @@ void main() {
     await etape('06_parametres_annees', () async => toucher(find.text('Années scolaires')));
     await etape('07_parametres_classes', () async => toucher(find.text('Classes et matières')));
     await etape('08_parametres_mentions', () async => toucher(find.text('Mentions et décisions')));
+
+    // Nouveau : cycles (primaire, collège, lycée) et options du lycée.
+    await etape('17_formulaire_classe', () async {
+      await toucher(find.text('Classes et matières'));
+      await toucher(find.text('Ajouter').first);
+      await toucher(find.byKey(const Key('choix_niveau_classe')));
+      await toucher(find.text('Terminale · Lycée').last);
+      await toucher(find.byKey(const Key('choix_serie_classe')));
+      await toucher(find.text('Sciences mathématiques').last);
+    });
+    await toucherSiPresent(find.text('Annuler'));
+    await etape('18_parametres_periodes', () async => toucher(find.text('Périodes')));
+    await etape('19_periodes_primaire', () async =>
+        toucher(find.byKey(const Key('cycle_periodes_primaire'))));
+    await etape('20_periodes_college', () async =>
+        toucher(find.byKey(const Key('cycle_periodes_college'))));
+
+    await toucherSiPresent(find.byKey(const Key('menu_resultats')));
+    await etape('21_resultats_eleves', () async {});
+    await etape('22_resultats_classes', () async =>
+        toucher(find.byKey(const Key('vue_classes'))));
+    await etape('23_resultats_bulletins', () async =>
+        toucher(find.byKey(const Key('vue_bulletins'))));
+    await etape('24_bulletins_auto_resultat', () async {
+      await toucher(find.byKey(const Key('auto_bulletins_tout')));
+      for (var i = 0; i < 200; i++) {
+        if (find.byKey(const Key('auto_bulletins_resume')).evaluate().isNotEmpty) break;
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    });
+    await toucherSiPresent(find.byKey(const Key('menu_tableau_de_bord')));
+    await etape('25_tableau_de_bord_cycles', () async {});
 
     await toucher(find.byKey(const Key('menu_notes')));
     await etape('11_notes_octobre', () async =>
