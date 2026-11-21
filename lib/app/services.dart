@@ -1,3 +1,4 @@
+import '../data/changements_notes.dart';
 import '../data/controle.dart';
 import '../data/depots/annee_depot.dart';
 import '../data/depots/appreciation_depot.dart';
@@ -30,7 +31,7 @@ class Services {
     final s = session ?? Session.sansControle();
     final journal = JournalDepot(gdb.db);
     final controle = Controle(autorisations: s, journal: journal);
-    return Services._(gdb, s, journal, controle, iterations);
+    return Services._(gdb, s, journal, controle, iterations, NotificationsNotes());
   }
 
   Services._(
@@ -39,6 +40,7 @@ class Services {
     this.journal,
     this.controle,
     int iterations,
+    this.notifications,
   )   : etablissements = EtablissementDepot(gdb.db, controle: controle),
         annees = AnneeDepot(gdb.db, controle: controle),
         configs = ConfigResultatsDepot(gdb.db, controle: controle),
@@ -47,7 +49,7 @@ class Services {
         matieres = MatiereDepot(gdb.db, controle: controle),
         eleves = EleveDepot(gdb.db, controle: controle),
         enseignants = EnseignantDepot(gdb.db, controle: controle),
-        notes = NoteDepot(gdb.db, controle: controle),
+        notes = NoteDepot(gdb.db, controle: controle, notifications: notifications),
         appreciations = AppreciationDepot(gdb.db, controle: controle),
         parametres = ParametreDepot(gdb.db, controle: controle),
         utilisateurs = UtilisateurDepot(
@@ -62,6 +64,9 @@ class Services {
   final Session session;
   final JournalDepot journal;
   final Controle controle;
+
+  /// Signale les changements de notes (bulletins automatiques...).
+  final NotificationsNotes notifications;
   final EtablissementDepot etablissements;
   final AnneeDepot annees;
   final ConfigResultatsDepot configs;

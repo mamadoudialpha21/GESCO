@@ -92,6 +92,8 @@ void main() {
 
   Future<void> enregistrer(WidgetTester tester) async {
     await tester.ensureVisible(find.byKey(const Key('enregistrer_periodes')));
+    // Laisse la liste appliquer le défilement avant de viser le bouton.
+    await tester.pump();
     await tester.tap(find.byKey(const Key('enregistrer_periodes')));
     await tester.pump();
   }

@@ -905,35 +905,6 @@ class _DialogueMatiereState extends State<_DialogueMatiere> {
     super.dispose();
   }
 
-  NiveauScolaire? get _niveauChoisi => niveauDeCode(_niveauCode);
-
-  void _choisirNiveau(int? code) {
-    setState(() {
-      _niveauCode = code ?? 0;
-      final n = _niveauChoisi;
-      if (n == null || !n.aDesOptions) _serie = null;
-      _proposerNom();
-    });
-  }
-
-  void _choisirSerie(String? code) {
-    setState(() {
-      _serie = SerieLycee.depuisCode(code);
-      _proposerNom();
-    });
-  }
-
-  void _proposerNom() {
-    final n = _niveauChoisi;
-    if (n == null) return;
-    final nom = _nom.text.trim();
-    if (nom.isEmpty || nom == _nomPropose) {
-      _nomPropose = nomProposeDeClasse(n, _serie);
-      _nom.text = _nomPropose;
-      _nom.selection = TextSelection.collapsed(offset: _nom.text.length);
-    }
-  }
-
   void _valider() {
     final nom = _nom.text.trim();
     final coefficient = analyserCoefficient(_coefficient.text);

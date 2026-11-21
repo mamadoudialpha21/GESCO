@@ -4,6 +4,7 @@ import '../../domain/bareme.dart';
 import '../../domain/modeles.dart';
 import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
+import '../changements_notes.dart';
 import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_notation.dart';
@@ -20,11 +21,29 @@ class NoteDepot {
     this._db, {
     DateTime Function()? maintenant,
     this.controle = Controle.aucun,
+    this.notifications,
   }) : _maintenant = maintenant ?? DateTime.now;
 
   final Database _db;
   final DateTime Function() _maintenant;
   final Controle controle;
+
+  /// Prévenue après chaque enregistrement réussi (génération automatique des
+  /// bulletins...). Facultative.
+  final NotificationsNotes? notifications;
+
+  /// Signale que les notes de la classe de [matiereId] ont changé pour [mois].
+  Future<void> _signaler(int matiereId, int mois) async {
+    final n = notifications;
+    if (n == null) return;
+    final l = await _db.query(
+      'matiere_classe',
+      columns: ['classe_id'],
+      where: 'id = ?',
+      whereArgs: [matiereId],
+    );
+    if (l.isNotEmpty) n.signaler(ChangementNotes(l.first['classe_id'] as int, mois));
+  }
 
   /// Toutes les saisies des élèves actuellement inscrits dans [classeId]
   /// (tous mois confondus).
@@ -176,6 +195,7 @@ class NoteDepot {
       }
       rethrow;
     }
+    await _signaler(matiereId, mois);
   }
 
   /// Un compte de saisie lié à un enseignant ne peut toucher qu'aux matières

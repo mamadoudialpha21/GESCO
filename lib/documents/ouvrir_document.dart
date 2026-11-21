@@ -70,6 +70,22 @@ Future<File> enregistrerPdf(
   return fichier;
 }
 
+/// Écrit [octets] dans [cible] en remplaçant le fichier existant, sans jamais
+/// laisser un fichier tronqué : l'écriture passe par un fichier temporaire
+/// renommé une fois complet. Crée le dossier au besoin.
+Future<void> ecrireEnRemplacant(File cible, List<int> octets) async {
+  await cible.parent.create(recursive: true);
+  final temporaire = File('${cible.path}.tmp');
+  await temporaire.writeAsBytes(octets, flush: true);
+  try {
+    await temporaire.rename(cible.path);
+  } catch (_) {
+    // Fichier verrouillé (ouvert dans un lecteur) : ne pas laisser de reste.
+    if (temporaire.existsSync()) await temporaire.delete();
+    rethrow;
+  }
+}
+
 /// Ouvre le fichier avec le lecteur PDF par défaut (Windows, macOS, Linux).
 /// Retourne faux si le système n'a pas pu l'ouvrir.
 Future<bool> ouvrirFichier(String chemin) async {

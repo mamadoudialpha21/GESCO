@@ -19,6 +19,7 @@ class CleParametre {
   static const lignesParPage = 'interface.lignes_par_page';
   static const baremeDefaut = 'notation.bareme_defaut';
   static const styleDocuments = 'documents.style';
+  static const bulletinsAuto = 'documents.bulletins_auto';
 }
 
 /// Paramètres du logiciel enregistrés sous forme clé / valeur.
@@ -48,6 +49,14 @@ class ParametreDepot {
   Future<String?> styleDocuments() => lire(CleParametre.styleDocuments);
 
   Future<void> definirStyleDocuments(String id) => ecrire(CleParametre.styleDocuments, id);
+
+  /// Génération automatique des bulletins après chaque saisie de notes :
+  /// activée tant que l'utilisateur ne l'a pas désactivée.
+  Future<bool> bulletinsAutomatiques() async =>
+      (await lire(CleParametre.bulletinsAuto)) != '0';
+
+  Future<void> definirBulletinsAutomatiques(bool actif) =>
+      ecrire(CleParametre.bulletinsAuto, actif ? '1' : '0');
 
   Future<String?> lire(String cle) async {
     final l = await _db.query('parametre', where: 'cle = ?', whereArgs: [cle]);

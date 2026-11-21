@@ -7,6 +7,7 @@ import '../../domain/evaluations.dart';
 import '../../domain/modeles.dart';
 import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
+import '../changements_notes.dart';
 import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_notation.dart';
@@ -49,6 +50,16 @@ class EvaluationDepot {
   final NoteDepot _notes;
   final Controle controle;
   final DateTime Function() _maintenant;
+
+  /// Prévient les écouteurs (bulletins automatiques) qu'une note du mois a
+  /// changé. Une composition ou un examen marque la fin d'un trimestre.
+  void _signaler(Evaluation e) => _notes.notifications?.signaler(
+        ChangementNotes(
+          e.classeId,
+          e.mois,
+          composition: e.type == TypeEvaluation.composition || e.type == TypeEvaluation.examen,
+        ),
+      );
 
   static const int longueurMaxTitre = 80;
   static const int coefficientMax = 9999;
@@ -252,6 +263,8 @@ class EvaluationDepot {
         if (mois != null) 'mois',
       ].join(', '),
     );
+    final apres = await obtenir(id);
+    if (apres != null) _signaler(apres);
   }
 
   /// Supprime une évaluation. Si elle a des notes, une confirmation est
@@ -260,12 +273,14 @@ class EvaluationDepot {
   Future<void> supprimer(int id, {bool avecNotes = false}) async {
     controle.exiger(Permission.evaluationsGerer, 'supprimer une évaluation');
     String titre = '';
+    Evaluation? supprimee;
     try {
       await _db.transaction<void>((txn) async {
         final lignes = await txn.query('evaluation', where: 'id = ?', whereArgs: [id]);
         if (lignes.isEmpty) throw const ErreurGesco('Évaluation introuvable.');
         final actuelle = _depuis(lignes.first);
         titre = actuelle.titre;
+        supprimee = actuelle;
         await _verifierEnseignant(txn, actuelle.matiereId);
         _verifierModifiable(actuelle);
         await _verifierMoisLibre(txn, actuelle.classeId, actuelle.mois);
@@ -290,6 +305,8 @@ class EvaluationDepot {
       throw erreurDeDeclencheur(e) ?? e;
     }
     await controle.noter('suppression', 'evaluation', id: id, details: titre);
+    final e = supprimee;
+    if (e != null) _signaler(e);
   }
 
   /// Valide une évaluation (plus aucune note modifiable) ou annule la
@@ -394,6 +411,7 @@ class EvaluationDepot {
       }
       rethrow;
     }
+    _signaler(e);
   }
 
   /// Statistiques d'une évaluation sur les élèves qui suivent la classe.
