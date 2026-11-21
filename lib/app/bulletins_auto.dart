@@ -85,9 +85,13 @@ List<Portee> porteesPourChangement(Calendrier calendrier, ChangementNotes change
 
 /// Résultat d'une génération de bulletins.
 class RapportBulletins {
-  RapportBulletins({DateTime? date}) : date = date ?? DateTime.now();
+  RapportBulletins({DateTime? date, this.automatique = false}) : date = date ?? DateTime.now();
 
   final DateTime date;
+
+  /// Vrai quand la génération a été déclenchée par une saisie de notes, faux
+  /// quand l'utilisateur l'a demandée (« Tout générer »).
+  final bool automatique;
 
   /// Une ligne par classe et période produite : « Tle SM · Trimestre 1 : 32 bulletins ».
   final List<String> descriptions = [];
@@ -200,7 +204,7 @@ class BulletinsAuto extends ChangeNotifier {
     } catch (_) {
       return;
     }
-    final rapport = RapportBulletins(date: _maintenant());
+    final rapport = RapportBulletins(date: _maintenant(), automatique: true);
     enCours = true;
     notifyListeners();
     try {

@@ -53,8 +53,8 @@ void main() {
     });
 
     test('le bulletin annuel suit le dernier trimestre du calendrier', () {
-      expect(cles(Calendrier.semestres, 1), ['m1', 't1']);
-      expect(cles(Calendrier.semestres, 6), ['m6', 't2', 'annee']);
+      expect(cles(Calendrier.semestres, 1), ['m1', 's1']);
+      expect(cles(Calendrier.semestres, 6), ['m6', 's2', 'annee']);
     });
 
     test('libellés, types et dossiers', () {

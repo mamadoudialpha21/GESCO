@@ -9,6 +9,7 @@ import 'commun/composants.dart';
 import 'inscriptions/page_inscriptions.dart';
 import 'notes/page_notes.dart';
 import 'parametres/page_parametres.dart';
+import 'resultats/avis_bulletins_auto.dart';
 import 'resultats/page_resultats.dart';
 import 'securite/page_securite.dart';
 import 'tableau_de_bord.dart';
@@ -149,6 +150,13 @@ class _CoquilleState extends State<Coquille> {
 
   @override
   Widget build(BuildContext context) {
+    return AvisBulletinsAuto(
+      auto: widget.etat.bulletinsAuto,
+      child: _construire(context),
+    );
+  }
+
+  Widget _construire(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge([widget.etat, widget.etat.services.session]),
       builder: (context, _) {

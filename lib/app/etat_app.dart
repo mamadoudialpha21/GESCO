@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/modeles_donnees.dart';
 import '../domain/permissions.dart';
 import 'acces.dart';
+import 'bulletins_auto.dart';
 import 'services.dart';
 
 /// État partagé de l'application : année sélectionnée, fiche de
@@ -13,6 +14,7 @@ class EtatApp extends ChangeNotifier {
     this.services, {
     required this.chemin,
     this.problemesIntegrite = const [],
+    this.bulletinsAuto,
   }) : acces = Acces(services);
 
   final Services services;
@@ -29,6 +31,10 @@ class EtatApp extends ChangeNotifier {
 
   /// Problèmes détectés par le contrôle d'intégrité au démarrage.
   final List<String> problemesIntegrite;
+
+  /// Génération automatique des bulletins individuels (absente dans les
+  /// tests qui n'en ont pas besoin).
+  final BulletinsAuto? bulletinsAuto;
 
   List<AnneeScolaire> annees = const [];
   int? anneeId;

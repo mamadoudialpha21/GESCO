@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'app/bulletins_auto.dart';
 import 'app/etat_app.dart';
 import 'app/services.dart';
 import 'app/session.dart';
 import 'data/emplacements.dart';
 import 'data/gesco_database.dart';
+import 'documents/ouvrir_document.dart';
+import 'documents/polices_pdf.dart';
 import 'ui/acces/porte_acces.dart';
 import 'ui/theme.dart';
 
@@ -22,10 +25,19 @@ Future<void> main() async {
       chemin: chemin,
     );
     final problemes = await gdb.verifierIntegrite();
+    final services = Services(gdb, session: Session());
+    // Bulletins individuels régénérés à chaque saisie de notes (réglage
+    // « Bulletins automatiques », activé par défaut).
+    final bulletinsAuto = BulletinsAuto(
+      services: services,
+      dossierRacine: dossierDocuments,
+      chargerPolices: PolicesPdf.charger,
+    )..demarrer();
     final etat = EtatApp(
-      Services(gdb, session: Session()),
+      services,
       chemin: chemin,
       problemesIntegrite: problemes,
+      bulletinsAuto: bulletinsAuto,
     );
     await etat.charger();
     await etat.acces.charger();

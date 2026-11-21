@@ -21,6 +21,7 @@ import '../commun/choix.dart';
 import '../commun/composants.dart';
 import '../commun/dialogues.dart';
 import '../theme.dart';
+import 'carte_bulletins_auto.dart';
 
 /// Dernier document produit, rappelé sous les boutons.
 class _Document {
@@ -244,9 +245,20 @@ class _VueBulletinsState extends State<VueBulletins> {
     final type = _type;
     final peut = _peutGenerer && !_enCours;
 
+    final auto = widget.etat.bulletinsAuto;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (auto != null) ...[
+          CarteBulletinsAuto(
+            etat: widget.etat,
+            auto: auto,
+            cle: widget.portee.cle,
+            periodeLibelle: widget.periodeLibelle,
+            ouvreur: widget.ouvreur,
+          ),
+          const SizedBox(height: 16),
+        ],
         Carte(
           padding: const EdgeInsets.all(20),
           child: Column(
