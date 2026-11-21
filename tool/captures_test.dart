@@ -248,11 +248,12 @@ void main() {
     await etape('01_tableau_de_bord', () async {});
     await etape('02_inscriptions', () async => toucher(find.text('Inscriptions').first));
     await etape('03_formulaire_eleve', () async => toucher(find.text('Inscrire un élève')));
-    await toucher(find.text('Annuler'));
-    await etape('04_fiche_eleve', () async => toucher(find.text('DIALLO Aminata')));
-    await toucher(find.text('Fermer'));
+    await toucherSiPresent(find.text('Annuler'));
+    // La liste s'ouvre sur la première classe (CE2 A).
+    await etape('04_fiche_eleve', () async => toucher(find.text('KOUROUMA Fanta')));
+    await toucherSiPresent(find.text('Fermer'));
 
-    await toucher(find.text('Paramètres').first);
+    await toucherSiPresent(find.text('Paramètres').first);
     await etape('05_parametres_etablissement', () async {});
     await etape('06_parametres_annees', () async => toucher(find.text('Années scolaires')));
     await etape('07_parametres_classes', () async => toucher(find.text('Classes et matières')));
