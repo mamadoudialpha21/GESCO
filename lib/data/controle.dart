@@ -28,6 +28,10 @@ class ToutAutoriser implements Autorisations {
   int? get enseignantLimite => null;
 }
 
+/// « de » ou « d' » selon la première lettre du verbe qui suit.
+String _de(String action) =>
+    RegExp(r'^[aeiouyhàâäéèêëîïôöùûü]', caseSensitive: false).hasMatch(action) ? 'd\'' : 'de ';
+
 /// Contrôle d'accès et journalisation partagés par les dépôts : même si un
 /// écran affiche un bouton par erreur, une opération sensible est refusée
 /// sans la permission, et chaque modification est inscrite au journal.
@@ -56,7 +60,7 @@ class Controle {
     }
     throw ErreurGesco(
       'Vous n\'avez pas l\'autorisation '
-      '${action == null ? 'd\'effectuer cette opération' : 'de $action'}.',
+      '${action == null ? 'd\'effectuer cette opération' : '${_de(action)}$action'}.',
     );
   }
 

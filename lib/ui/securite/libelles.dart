@@ -33,6 +33,7 @@ String libelleEntite(String entite) => switch (entite) {
       'calendrier' => 'Périodes',
       'utilisateur' => 'Compte',
       'enseignant' => 'Enseignant',
+      'absence' => 'Absence ou retard',
       'evaluation' => 'Évaluation',
       'bareme' => 'Barème',
       'sauvegarde' => 'Sauvegarde',

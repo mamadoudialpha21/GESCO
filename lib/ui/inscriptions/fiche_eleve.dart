@@ -7,6 +7,7 @@ import '../../domain/dates.dart';
 import '../../domain/permissions.dart';
 import '../commun/chargeur.dart';
 import '../theme.dart';
+import 'section_absences.dart';
 
 /// Action demandée depuis la fiche (exécutée ensuite par la page).
 enum ActionFiche { modifier, supprimer, sortie, reprendre, transferer, archiver }
@@ -248,6 +249,8 @@ class DialogueFiche extends StatelessWidget {
               child: Text(_libelleMouvement(m)),
             ),
         ],
+        const SizedBox(height: 20),
+        SectionAbsences(etat: etat, inscriptionId: inscrit.inscriptionId),
       ],
     );
   }

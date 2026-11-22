@@ -344,7 +344,7 @@ void main() {
 
     test('niveaux reconnus, calendriers existants conservés pour chaque cycle', () async {
       final gdb = await GescoDatabase.ouvrir(fabrique: databaseFactoryFfi, chemin: chemin);
-      expect(await gdb.version(), 3);
+      expect(await gdb.version(), GescoDatabase.versionSchema);
       expect(await gdb.verifierIntegrite(), isEmpty);
 
       final classes = ClasseDepot(gdb.db);
@@ -382,7 +382,7 @@ void main() {
       var gdb = await GescoDatabase.ouvrir(fabrique: databaseFactoryFfi, chemin: chemin);
       await gdb.fermer();
       gdb = await GescoDatabase.ouvrir(fabrique: databaseFactoryFfi, chemin: chemin);
-      expect(await gdb.version(), 3);
+      expect(await gdb.version(), GescoDatabase.versionSchema);
       final n = await gdb.db.rawQuery('SELECT COUNT(*) AS n FROM config_calendrier_cycle');
       expect(n.first['n'], 3, reason: 'un seul calendrier existant, copié trois fois');
       await gdb.fermer();
