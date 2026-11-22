@@ -276,6 +276,11 @@ void main() {
     await taille(1280, 1200);
     await etape('17_formulaire_classe', () async {
       await toucher(find.text('Classes et matières'));
+      // Le défilement entre onglets éloignés demande quelques images de plus.
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       await toucher(find.text('Ajouter').first);
       await toucher(find.byKey(const Key('choix_niveau_classe')));
       await toucher(find.text('Terminale · Lycée').last);
