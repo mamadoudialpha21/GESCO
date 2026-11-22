@@ -259,7 +259,9 @@ class _VueBulletinsState extends State<VueBulletins> {
           ),
           const SizedBox(height: 16),
         ],
-        Carte(
+        SizedBox(
+          width: double.infinity,
+          child: Carte(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,6 +358,7 @@ class _VueBulletinsState extends State<VueBulletins> {
                 ),
               ],
             ],
+          ),
           ),
         ),
         if (_dernier != null) ...[

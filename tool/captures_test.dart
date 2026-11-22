@@ -231,6 +231,7 @@ void main() {
     }
 
     Future<void> toucher(Finder f) async {
+      if (f.evaluate().isEmpty) throw StateError('Élément introuvable : $f');
       // Les puces de période défilent : on amène la cible à l'écran avant.
       await tester.ensureVisible(f.first);
       await tester.pump();
@@ -249,8 +250,8 @@ void main() {
     await etape('02_inscriptions', () async => toucher(find.text('Inscriptions').first));
     await etape('03_formulaire_eleve', () async => toucher(find.text('Inscrire un élève')));
     await toucherSiPresent(find.text('Annuler'));
-    // La liste s'ouvre sur la première classe (CE2 A).
-    await etape('04_fiche_eleve', () async => toucher(find.text('KOUROUMA Fanta')));
+    // La liste est triée par nom : BAH Mamadou est le premier.
+    await etape('04_fiche_eleve', () async => toucher(find.text('BAH Mamadou')));
     await toucherSiPresent(find.text('Fermer'));
 
     await toucherSiPresent(find.text('Paramètres').first);
@@ -260,6 +261,7 @@ void main() {
     await etape('08_parametres_mentions', () async => toucher(find.text('Mentions et décisions')));
 
     // Nouveau : cycles (primaire, collège, lycée) et options du lycée.
+    await taille(1280, 1200);
     await etape('17_formulaire_classe', () async {
       await toucher(find.text('Classes et matières'));
       await toucher(find.text('Ajouter').first);
@@ -269,6 +271,7 @@ void main() {
       await toucher(find.text('Sciences mathématiques').last);
     });
     await toucherSiPresent(find.text('Annuler'));
+    await taille(1280, 860);
     await etape('18_parametres_periodes', () async => toucher(find.text('Périodes')));
     await etape('19_periodes_primaire', () async =>
         toucher(find.byKey(const Key('cycle_periodes_primaire'))));
