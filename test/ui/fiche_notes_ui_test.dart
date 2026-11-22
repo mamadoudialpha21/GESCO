@@ -333,8 +333,12 @@ void main() {
           home: Scaffold(
             body: ListenableBuilder(
               listenable: etat,
-              builder: (context, _) => PageNotes(
+              // La classe est imposée : la page Notes propose d'abord la
+              // première classe de la liste, qui peut être la classe vide.
+              builder: (context, _) => VueSaisie(
                 etat: etat,
+                classeId: classe,
+                surClasse: (_) {},
                 allerAuxParametres: () {},
                 allerAuxInscriptions: () {},
                 maintenant: () => DateTime(2026, 11, 5),
