@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/appreciations_classe.dart';
 import '../../app/calcul_classe.dart';
 import '../../app/etat_app.dart';
 import '../../data/depots/appreciation_depot.dart';
@@ -16,13 +17,16 @@ import '../theme.dart';
 import 'dialogue_appreciations_matieres.dart';
 
 class _DonneesAppreciations {
-  const _DonneesAppreciations(this.classeId, this.cle, this.eleves, this.matieres);
+  const _DonneesAppreciations(this.classeId, this.cle, this.eleves, this.matieres, this.auto);
 
   /// Classe et période auxquelles ces données appartiennent.
   final int classeId;
   final String cle;
   final Map<int, AppreciationEleve> eleves;
   final Map<int, Map<int, String>> matieres;
+
+  /// Appréciations automatiques activées.
+  final bool auto;
 }
 
 /// Saisie des appréciations et de la décision du conseil pour une classe et
@@ -55,6 +59,7 @@ class VueAppreciations extends StatelessWidget {
         cle,
         await etat.services.appreciations.eleves(classeId, cle),
         await etat.services.appreciations.matieres(classeId, cle),
+        await etat.services.parametres.appreciationsAutomatiques(),
       ),
       builder: (context, d) {
         // Pendant le chargement d'une autre classe ou d'une autre période, le
@@ -107,11 +112,17 @@ class _EditeurState extends State<_Editeur> {
   late final Map<int, TextEditingController> _appreciations;
   late final Map<int, TextEditingController> _decisions;
 
+  /// Appréciations rédigées d'après les notes et le classement de la période.
+  late final AppreciationsGenerees _generees;
+  late bool _autoActif;
+
   bool get _peutSaisir => widget.etat.peut(Permission.appreciationsSaisir);
 
   @override
   void initState() {
     super.initState();
+    _autoActif = widget.donnees.auto;
+    _generees = genererAppreciations(widget.calcul, widget.portee);
     // Les élèves partis ou ayant abandonné n'ont pas d'appréciation.
     _eleves = [for (final e in widget.calcul.eleves) if (e.actif) e];
     _appreciations = {
@@ -170,6 +181,44 @@ class _EditeurState extends State<_Editeur> {
     if (ok) widget.etat.donneesModifiees();
   }
 
+  /// Proposition automatique pour un élève dont le champ est vide.
+  String? _proposition(int id) {
+    if (!_autoActif || _appreciations[id]!.text.trim().isNotEmpty) return null;
+    final texte = _generees.generales[id];
+    return (texte == null || texte.isEmpty) ? null : texte;
+  }
+
+  int get _nbPropositions => [for (final e in _eleves) _proposition(e.inscriptionId)]
+      .where((p) => p != null)
+      .length;
+
+  /// Recopie les propositions dans les champs vides ; l'utilisateur peut les
+  /// modifier avant d'enregistrer.
+  void _utiliserTout() {
+    for (final e in _eleves) {
+      final p = _proposition(e.inscriptionId);
+      if (p != null) _appreciations[e.inscriptionId]!.text = p;
+    }
+    setState(() {});
+  }
+
+  void _utiliser(int id) {
+    final p = _proposition(id);
+    if (p != null) {
+      _appreciations[id]!.text = p;
+      setState(() {});
+    }
+  }
+
+  Future<void> _basculerAuto(bool actif) async {
+    setState(() => _autoActif = actif);
+    final ok = await executer(
+      context,
+      () => widget.etat.services.parametres.definirAppreciationsAutomatiques(actif),
+    );
+    if (!ok && mounted) setState(() => _autoActif = !actif);
+  }
+
   Future<void> _parMatiere(EleveInscrit e) async {
     final textes = widget.donnees.matieres[e.inscriptionId] ?? const {};
     final modifies = await showDialog<Map<int, String>>(
@@ -179,6 +228,7 @@ class _EditeurState extends State<_Editeur> {
         periodeLibelle: widget.periodeLibelle,
         matieres: widget.calcul.matieres,
         textes: textes,
+        propositions: _autoActif ? _generees.matieres[e.inscriptionId] ?? const {} : const {},
         lectureSeule: !_peutSaisir,
       ),
     );
@@ -242,12 +292,43 @@ class _EditeurState extends State<_Editeur> {
             ],
           ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Switch(
+              key: const Key('appr_auto_actif'),
+              value: _autoActif,
+              onChanged: _peutSaisir ? _basculerAuto : null,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _autoActif
+                    ? 'Appréciation automatique : pour les élèves sans appréciation saisie, '
+                        'le bulletin reprend un texte rédigé d\'après leurs notes et leur classement.'
+                    : 'Appréciation automatique désactivée : seuls les textes saisis figurent '
+                        'sur les bulletins.',
+                key: const Key('appr_auto_texte'),
+                style: const TextStyle(color: CouleursGesco.gris),
+              ),
+            ),
+            if (_peutSaisir && _nbPropositions > 0)
+              OutlinedButton.icon(
+                key: const Key('appr_tout_utiliser'),
+                onPressed: _utiliserTout,
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: Text('Utiliser pour $_nbPropositions élève${_nbPropositions > 1 ? 's' : ''}'),
+              ),
+          ],
+        ),
         const SizedBox(height: 12),
         for (final e in _eleves) ...[
           _CarteEleve(
             eleve: e,
             resultat: resultats[e.inscriptionId],
             appreciation: _appreciations[e.inscriptionId]!,
+            proposition: _proposition(e.inscriptionId),
+            surUtiliser: () => _utiliser(e.inscriptionId),
             decision: _decisions[e.inscriptionId]!,
             lectureSeule: !_peutSaisir,
             nbMatieresRenseignees: widget.donnees.matieres[e.inscriptionId]?.length ?? 0,
@@ -266,6 +347,8 @@ class _CarteEleve extends StatelessWidget {
     required this.eleve,
     required this.resultat,
     required this.appreciation,
+    required this.proposition,
+    required this.surUtiliser,
     required this.decision,
     required this.lectureSeule,
     required this.nbMatieresRenseignees,
@@ -276,6 +359,10 @@ class _CarteEleve extends StatelessWidget {
   final EleveInscrit eleve;
   final ResultatEleve? resultat;
   final TextEditingController appreciation;
+
+  /// Texte automatique proposé tant que le champ est vide (null sinon).
+  final String? proposition;
+  final VoidCallback surUtiliser;
   final TextEditingController decision;
   final bool lectureSeule;
   final int nbMatieresRenseignees;
@@ -322,6 +409,35 @@ class _CarteEleve extends StatelessWidget {
             maxLength: AppreciationDepot.longueurMaxGenerale,
             decoration: champ('Appréciation générale').copyWith(counterText: ''),
           ),
+          if (proposition != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2, right: 6),
+                    child: Icon(Icons.auto_awesome_outlined, size: 16, color: CouleursGesco.gris),
+                  ),
+                  Expanded(
+                    child: Text(
+                      proposition!,
+                      key: Key('appr_auto_$id'),
+                      style: const TextStyle(
+                        color: CouleursGesco.gris,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                  if (!lectureSeule)
+                    TextButton(
+                      key: Key('appr_utiliser_$id'),
+                      onPressed: surUtiliser,
+                      child: const Text('Utiliser'),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

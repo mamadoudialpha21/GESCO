@@ -7,6 +7,7 @@ import '../documents/modele_bulletin.dart';
 import '../domain/arrondi.dart';
 import '../domain/calendrier.dart';
 import '../domain/moteur_resultats.dart';
+import 'appreciations_classe.dart';
 import 'calcul_classe.dart';
 
 /// Bulletins des élèves d'une classe pour une période.
@@ -18,6 +19,9 @@ import 'calcul_classe.dart';
 ///   partis ne reçoivent un bulletin que s'ils sont demandés explicitement.
 /// - [fiches] : fiches complètes (photo, lieu de naissance) par identifiant
 ///   d'élève ; facultatives.
+/// - [appreciationsAuto] : quand une appréciation (générale ou d'une matière)
+///   n'a pas été saisie, la rédiger d'après les notes et le classement. Une
+///   appréciation saisie par l'utilisateur n'est jamais remplacée.
 List<Bulletin> construireBulletins({
   required CalculClasse calcul,
   required Portee portee,
@@ -30,7 +34,11 @@ List<Bulletin> construireBulletins({
   Map<int, Eleve> fiches = const {},
   Set<int>? inscriptions,
   DateTime? dateEdition,
+  bool appreciationsAuto = false,
 }) {
+  final auto = appreciationsAuto
+      ? genererAppreciations(calcul, portee)
+      : const AppreciationsGenerees();
   final resultats = {for (final r in calcul.resultats(portee)) r.inscriptionId: r};
   final stats = calcul.stats(portee);
   final classe = calcul.classe.classe;
@@ -90,6 +98,7 @@ List<Bulletin> construireBulletins({
         final r = resultats[e.inscriptionId]!;
         final fiche = fiches[e.eleveId];
         final avis = appreciations[e.inscriptionId];
+        final avisAuto = auto.matieres[e.inscriptionId];
         return Bulletin(
           type: type,
           periodeLibelle: periodeLibelle,
@@ -123,7 +132,10 @@ List<Bulletin> construireBulletins({
                 moyenneClasse: statsMatiere[m.id]!.$1,
                 minClasse: statsMatiere[m.id]!.$2,
                 maxClasse: statsMatiere[m.id]!.$3,
-                appreciation: appreciationsMatieres[e.inscriptionId]?[m.id] ?? '',
+                appreciation: _premierNonVide(
+                  appreciationsMatieres[e.inscriptionId]?[m.id],
+                  avisAuto?[m.id],
+                ),
                 facultative: m.facultative,
               ),
           ],
@@ -137,7 +149,7 @@ List<Bulletin> construireBulletins({
           mention: r.mention,
           decision: r.decision,
           incomplet: r.incomplet,
-          appreciation: avis?.appreciation ?? '',
+          appreciation: _premierNonVide(avis?.appreciation, auto.generales[e.inscriptionId]),
           decisionConseil: avis?.decision ?? '',
           periodes: [
             for (final entree in resultatsPeriodes.entries)
@@ -151,4 +163,10 @@ List<Bulletin> construireBulletins({
         );
       }(),
   ];
+}
+
+/// Première valeur non vide (la saisie de l'utilisateur d'abord).
+String _premierNonVide(String? saisie, String? generee) {
+  if (saisie != null && saisie.trim().isNotEmpty) return saisie;
+  return generee ?? '';
 }

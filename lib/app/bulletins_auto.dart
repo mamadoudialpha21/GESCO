@@ -314,6 +314,7 @@ class BulletinsAuto extends ChangeNotifier {
     final cle = portee.cle;
     final avis = await services.appreciations.eleves(classe.id, cle);
     final avisMatieres = await services.appreciations.matieres(classe.id, cle);
+    final appreciationsAuto = await services.parametres.appreciationsAutomatiques();
     final fiches = <int, Eleve>{};
     for (final e in actifs) {
       final fiche = await services.eleves.obtenir(e.eleveId);
@@ -328,6 +329,7 @@ class BulletinsAuto extends ChangeNotifier {
       anneeLibelle: ctx.anneeLibelle,
       appreciations: avis,
       appreciationsMatieres: avisMatieres,
+      appreciationsAuto: appreciationsAuto,
       fiches: fiches,
       dateEdition: _maintenant(),
     );

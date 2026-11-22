@@ -18,6 +18,7 @@ List<Bulletin> bulletins({
   Map<int, Eleve> fiches = const {},
   Set<int>? inscriptions,
   DateTime? dateEdition,
+  bool appreciationsAuto = false,
 }) =>
     construireBulletins(
       calcul: classe(),
@@ -31,11 +32,77 @@ List<Bulletin> bulletins({
       fiches: fiches,
       inscriptions: inscriptions,
       dateEdition: dateEdition,
+      appreciationsAuto: appreciationsAuto,
     );
 
 Bulletin de(List<Bulletin> liste, String nom) => liste.firstWhere((b) => b.eleveNom == nom);
 
 void main() {
+  group('appréciations automatiques', () {
+    String avisMatiere(Bulletin b, String matiere) =>
+        b.lignes.firstWhere((l) => l.matiere == matiere).appreciation;
+
+    test('désactivées par défaut : aucun texte ajouté', () {
+      for (final b in bulletins()) {
+        expect(b.appreciation, isEmpty, reason: b.eleveNom);
+        expect(b.lignes.every((l) => l.appreciation.isEmpty), isTrue, reason: b.eleveNom);
+      }
+    });
+
+    test('rédigées d\'après les notes pour chaque élève qui a une moyenne', () {
+      final liste = bulletins(appreciationsAuto: true);
+      expect(de(liste, 'BARRY').appreciation,
+          'Très bons résultats, il faut continuer ainsi. Points forts : Maths et Français.');
+      expect(
+        de(liste, 'DIALLO').appreciation,
+        'Résultats passables : l\'élève peut mieux faire. '
+        'Points forts : Maths. À renforcer : Français.',
+      );
+      // Pas de note : pas d'appréciation.
+      expect(de(liste, 'TOURE').appreciation, isEmpty);
+    });
+
+    test('appréciation de chaque matière, facultatives comprises', () {
+      final barry = de(bulletins(appreciationsAuto: true), 'BARRY');
+      expect(avisMatiere(barry, 'Maths'), 'Très bon travail');
+      expect(avisMatiere(barry, 'Français'), 'Très bon travail');
+      expect(avisMatiere(barry, 'Dessin'), 'Travail satisfaisant');
+      final toure = de(bulletins(appreciationsAuto: true), 'TOURE');
+      expect(toure.lignes.every((l) => l.appreciation.isEmpty), isTrue);
+    });
+
+    test('une appréciation saisie n\'est jamais remplacée', () {
+      final liste = bulletins(
+        appreciationsAuto: true,
+        appreciations: {3: const AppreciationEleve(appreciation: 'Peut mieux faire.')},
+        appreciationsMatieres: {
+          3: {2: 'À revoir'},
+        },
+      );
+      final diallo = de(liste, 'DIALLO');
+      expect(diallo.appreciation, 'Peut mieux faire.');
+      expect(avisMatiere(diallo, 'Français'), 'À revoir');
+      // Les matières non saisies sont complétées.
+      expect(avisMatiere(diallo, 'Maths'), 'Bon travail');
+      // Les autres élèves gardent le texte automatique.
+      expect(de(liste, 'BARRY').appreciation, startsWith('Très bons résultats'));
+    });
+
+    test('un texte saisi seulement d\'espaces compte pour vide', () {
+      final liste = bulletins(
+        appreciationsAuto: true,
+        appreciations: {3: const AppreciationEleve(appreciation: '   ')},
+      );
+      expect(de(liste, 'DIALLO').appreciation, startsWith('Résultats passables'));
+    });
+
+    test('la décision du conseil n\'est jamais rédigée automatiquement', () {
+      for (final b in bulletins(appreciationsAuto: true)) {
+        expect(b.decisionConseil, isEmpty, reason: b.eleveNom);
+      }
+    });
+  });
+
   group('élèves concernés', () {
     test('un bulletin par élève actif, dans l\'ordre de la classe', () {
       expect([for (final b in bulletins()) b.eleveNom], ['BARRY', 'CAMARA', 'DIALLO', 'TOURE']);

@@ -269,4 +269,140 @@ void main() {
     expect(lues, isEmpty);
     await fin(tester);
   });
+
+  group('appréciation automatique', () {
+    const texteAuto = 'Très bons résultats, il faut continuer ainsi. Points forts : Maths.';
+
+    /// Attend (temps réel) que le réglage enregistré vaille [attendu].
+    Future<void> reglage(WidgetTester tester, bool attendu) async {
+      var actuel = !attendu;
+      for (var i = 0; i < 60 && actuel != attendu; i++) {
+        actuel = (await tester.runAsync(
+            () => etat.services.parametres.appreciationsAutomatiques()))!;
+        if (actuel != attendu) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+        }
+      }
+      expect(actuel, attendu, reason: 'le réglage enregistré n\'a pas la valeur attendue');
+    }
+
+    testWidgets('proposée aux élèves qui ont une moyenne et pas d\'appréciation', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+
+      expect(texte(tester, 'appr_auto_$barry'), texteAuto);
+      expect(texte(tester, 'appr_auto_$diallo'), texteAuto);
+      // Pas de moyenne : rien à proposer. Élève parti : pas de carte.
+      expect(find.byKey(Key('appr_auto_$camara')), findsNothing);
+      expect(find.byKey(Key('appr_auto_$sow')), findsNothing);
+      expect(tester.widget<Switch>(find.byKey(const Key('appr_auto_actif'))).value, isTrue);
+      expect(find.text('Utiliser pour 2 élèves'), findsOneWidget);
+      // Une proposition n'est pas une saisie : rien à enregistrer.
+      expect(saisi(tester, 'appr_$barry'), '');
+      expect(enregistrerActif(tester), isFalse);
+      await fin(tester);
+    });
+
+    testWidgets('« Utiliser » recopie le texte, modifiable puis enregistré', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+
+      await tester.tap(find.byKey(Key('appr_utiliser_$barry')));
+      await tester.pump();
+      expect(saisi(tester, 'appr_$barry'), texteAuto);
+      expect(find.byKey(Key('appr_auto_$barry')), findsNothing);
+      expect(find.text('1 modification non enregistrée'), findsOneWidget);
+      expect(find.text('Utiliser pour 1 élève'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('enregistrer_appreciations')));
+      await tester.pump();
+      await jusqua(tester, () => find.byKey(const Key('appr_modifications')).evaluate().isEmpty);
+      expect((await enBase(tester, 't1'))[barry]!.appreciation, texteAuto);
+      expect(find.byKey(Key('appr_auto_$barry')), findsNothing);
+      await fin(tester);
+    });
+
+    testWidgets('« Utiliser pour N élèves » remplit tous les champs vides', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+
+      await tester.tap(find.byKey(const Key('appr_tout_utiliser')));
+      await tester.pump();
+      expect(saisi(tester, 'appr_$barry'), texteAuto);
+      expect(saisi(tester, 'appr_$diallo'), texteAuto);
+      expect(saisi(tester, 'appr_$camara'), '');
+      expect(find.text('2 modifications non enregistrées'), findsOneWidget);
+      expect(find.byKey(const Key('appr_tout_utiliser')), findsNothing);
+      await fin(tester);
+    });
+
+    testWidgets('un texte saisi remplace la proposition', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+      await tester.enterText(find.byKey(Key('appr_$barry')), 'Mon avis.');
+      await tester.pump();
+      expect(find.byKey(Key('appr_auto_$barry')), findsNothing);
+      expect(find.byKey(Key('appr_auto_$diallo')), findsOneWidget);
+      // Le texte saisi est effacé : la proposition revient.
+      await tester.enterText(find.byKey(Key('appr_$barry')), '');
+      await tester.pump();
+      expect(find.byKey(Key('appr_auto_$barry')), findsOneWidget);
+      await fin(tester);
+    });
+
+    testWidgets('désactiver : plus de proposition, réglage mémorisé', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+
+      await tester.tap(find.byKey(const Key('appr_auto_actif')));
+      await tester.pump();
+      await jusqua(tester, () => find.byKey(Key('appr_auto_$barry')).evaluate().isEmpty);
+      expect(texte(tester, 'appr_auto_texte'), contains('désactivée'));
+      expect(find.byKey(const Key('appr_tout_utiliser')), findsNothing);
+      await reglage(tester, false);
+
+      await tester.tap(find.byKey(const Key('appr_auto_actif')));
+      await tester.pump();
+      await jusqua(tester, () => find.byKey(Key('appr_auto_$barry')).evaluate().isNotEmpty);
+      await reglage(tester, true);
+      await fin(tester);
+    });
+
+    testWidgets('par matière : propositions grisées, recopiables', (tester) async {
+      await demarrer(tester);
+      await ouvrirOnglet(tester);
+
+      await tester.tap(find.byKey(Key('par_matiere_$barry')));
+      await tester.pumpAndSettle();
+      // Maths 16/20 : proposition ; Français sans note : aucune.
+      expect(find.text('Très bon travail'), findsOneWidget);
+      expect(saisi(tester, 'appr_matiere_$mathsA'), '');
+
+      await tester.tap(find.byKey(const Key('appr_matieres_utiliser')));
+      await tester.pump();
+      expect(saisi(tester, 'appr_matiere_$mathsA'), 'Très bon travail');
+      expect(saisi(tester, 'appr_matiere_$francaisA'), '');
+      expect(find.byKey(const Key('appr_matieres_utiliser')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('enregistrer_appr_matieres')));
+      await tester.pumpAndSettle();
+      await jusqua(tester, () => find.text('Par matière (1)').evaluate().isNotEmpty);
+      final lues = (await tester.runAsync(
+          () => etat.services.appreciations.matieres(classeA, 't1')))!;
+      expect(lues[barry], {mathsA: 'Très bon travail'});
+      await fin(tester);
+    });
+
+    testWidgets('par matière, désactivé : aucune proposition', (tester) async {
+      await demarrer(tester);
+      await tester.runAsync(() => etat.services.parametres.definirAppreciationsAutomatiques(false));
+      await ouvrirOnglet(tester);
+      expect(tester.widget<Switch>(find.byKey(const Key('appr_auto_actif'))).value, isFalse);
+      await tester.tap(find.byKey(Key('par_matiere_$barry')));
+      await tester.pumpAndSettle();
+      expect(find.text('Très bon travail'), findsNothing);
+      expect(find.byKey(const Key('appr_matieres_utiliser')), findsNothing);
+      await fin(tester);
+    });
+  });
 }

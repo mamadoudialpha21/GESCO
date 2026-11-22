@@ -20,6 +20,7 @@ class CleParametre {
   static const baremeDefaut = 'notation.bareme_defaut';
   static const styleDocuments = 'documents.style';
   static const bulletinsAuto = 'documents.bulletins_auto';
+  static const appreciationsAuto = 'documents.appreciations_auto';
 }
 
 /// Paramètres du logiciel enregistrés sous forme clé / valeur.
@@ -57,6 +58,15 @@ class ParametreDepot {
 
   Future<void> definirBulletinsAutomatiques(bool actif) =>
       ecrire(CleParametre.bulletinsAuto, actif ? '1' : '0');
+
+  /// Appréciations rédigées automatiquement d'après les notes et le
+  /// classement, pour les élèves qui n'ont pas d'appréciation saisie :
+  /// activées tant que l'utilisateur ne les a pas désactivées.
+  Future<bool> appreciationsAutomatiques() async =>
+      (await lire(CleParametre.appreciationsAuto)) != '0';
+
+  Future<void> definirAppreciationsAutomatiques(bool actif) =>
+      ecrire(CleParametre.appreciationsAuto, actif ? '1' : '0');
 
   Future<String?> lire(String cle) async {
     final l = await _db.query('parametre', where: 'cle = ?', whereArgs: [cle]);

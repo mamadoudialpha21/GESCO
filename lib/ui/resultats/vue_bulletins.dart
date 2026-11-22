@@ -172,6 +172,7 @@ class _VueBulletinsState extends State<VueBulletins> {
     final etablissement = await s.etablissements.lire();
     final avis = await s.appreciations.eleves(classeId, cle);
     final avisMatieres = await s.appreciations.matieres(classeId, cle);
+    final auto = await s.parametres.appreciationsAutomatiques();
     final fiches = <int, Eleve>{};
     for (final e in retenus) {
       final fiche = await s.eleves.obtenir(e.eleveId);
@@ -187,6 +188,7 @@ class _VueBulletinsState extends State<VueBulletins> {
       anneeLibelle: _anneeLibelle,
       appreciations: avis,
       appreciationsMatieres: avisMatieres,
+      appreciationsAuto: auto,
       fiches: fiches,
       inscriptions: _eleveId == 0 ? null : {_eleveId},
     );
