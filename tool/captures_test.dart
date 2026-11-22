@@ -231,7 +231,13 @@ void main() {
     }
 
     Future<void> toucher(Finder f) async {
-      if (f.evaluate().isEmpty) throw StateError('Élément introuvable : $f');
+      bool vide;
+      try {
+        vide = f.evaluate().isEmpty;
+      } on StateError {
+        vide = true;
+      }
+      if (vide) throw StateError('Élément introuvable : ${f.description}');
       // Les puces de période défilent : on amène la cible à l'écran avant.
       await tester.ensureVisible(f.first);
       await tester.pump();
@@ -240,7 +246,13 @@ void main() {
     }
 
     Future<void> toucherSiPresent(Finder f) async {
-      if (f.evaluate().isNotEmpty) await toucher(f);
+      var present = false;
+      try {
+        present = f.evaluate().isNotEmpty;
+      } on StateError {
+        present = false;
+      }
+      if (present) await toucher(f);
     }
 
     await taille(1280, 860);
