@@ -3,6 +3,7 @@ library;
 
 import '../domain/appreciations_auto.dart';
 import '../domain/calendrier.dart';
+import '../domain/periodes.dart';
 import 'calcul_classe.dart';
 
 /// Appréciations générées pour une classe et une étendue.
