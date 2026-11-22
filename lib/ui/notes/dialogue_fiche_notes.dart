@@ -391,8 +391,7 @@ class _DialogueFicheNotesState extends State<DialogueFicheNotes> {
                   controller: _intitules,
                   decoration: champ(
                     'Titres des colonnes (facultatif)',
-                    aide: 'Séparés par des virgules, ex. : Interro 1, Devoir, Composition. '
-                        'Vide : « Note 1, Note 2... ».',
+                    aide: 'Séparés par des virgules. Vide : « Note 1, Note 2... ».',
                   ),
                 ),
               ],

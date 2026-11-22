@@ -60,8 +60,14 @@ class _PageFicheNotes {
   bool get _paysage => ficheEnPaysage(f);
 
   /// Hauteur d'une ligne : assez grande pour écrire à la main, réduite quand
-  /// la classe est nombreuse.
-  double get _hauteurLigne => f.lignes.length <= 25 ? 22 : 19;
+  /// la classe est nombreuse pour que la fiche (signatures comprises) tienne
+  /// sur une seule page A4 portrait jusqu'à 32 élèves. Au-delà, ou en paysage
+  /// (page plus basse), la fiche continue sur plusieurs pages.
+  double get _hauteurLigne {
+    final n = f.lignes.length;
+    if (n == 0 || _paysage || n > 32) return 19;
+    return (480 / n - 0.4).clamp(15.5, 22.0);
+  }
 
   pw.MultiPage construire() {
     return pw.MultiPage(
@@ -166,7 +172,7 @@ class _PageFicheNotes {
       colonne++: const pw.FixedColumnWidth(26),
       colonne++: const pw.FlexColumnWidth(3.6),
       if (f.avecMatricule) colonne++: const pw.FixedColumnWidth(62),
-      if (f.avecSexe) colonne++: const pw.FixedColumnWidth(30),
+      if (f.avecSexe) colonne++: const pw.FixedColumnWidth(38),
       for (var i = 0; i < f.intitules.length; i++)
         colonne++: const pw.FlexColumnWidth(1.15),
       if (f.avecObservations) colonne++: const pw.FlexColumnWidth(1.8),
@@ -265,7 +271,7 @@ class _PageFicheNotes {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _zone('Date de remise de la fiche'),
+        if (!f.estListe) _zone('Date de remise de la fiche'),
         _zone(
           f.estListe ? 'Le titulaire de la classe' : 'Le professeur',
           detail: 'nom et signature',

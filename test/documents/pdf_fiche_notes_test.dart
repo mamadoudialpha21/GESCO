@@ -40,6 +40,14 @@ void main() {
       expect(pdf.pages, lessThanOrEqualTo(5));
     });
 
+    test('jusqu\'à trente élèves, signatures comprises, tiennent sur une page', () async {
+      for (final n in [24, 28, 30]) {
+        final pdf = await generer([ficheNotesExemple(nbEleves: n)]);
+        verifierPdf(pdf);
+        expect(pdf.pages, 1, reason: '$n élèves');
+      }
+    });
+
     test('trente-cinq élèves : une ou deux pages', () async {
       final pdf = await generer([ficheNotesExemple(nbEleves: 35)]);
       verifierPdf(pdf);
