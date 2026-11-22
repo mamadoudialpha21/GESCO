@@ -16,6 +16,7 @@ import '../commun/choix.dart';
 import '../commun/composants.dart';
 import '../commun/dialogues.dart';
 import '../notes/choix_classe.dart';
+import '../notes/dialogue_fiche_notes.dart';
 import '../notes/periode.dart';
 import '../theme.dart';
 import 'dialogue_evaluation.dart';
@@ -181,6 +182,13 @@ class _VueEvaluationsState extends State<VueEvaluations> {
                   icon: const Icon(Icons.add),
                   label: const Text('Nouvelle évaluation'),
                 ),
+              if (_etat.peut(Permission.documentsGenerer) && d.matieres.isNotEmpty)
+                OutlinedButton.icon(
+                  key: const Key('fiche_notes_classe'),
+                  onPressed: () => _imprimerFiche(d),
+                  icon: const Icon(Icons.print_outlined, size: 18),
+                  label: const Text('Fiche de notes'),
+                ),
             ],
           ),
         ),
@@ -221,10 +229,28 @@ class _VueEvaluationsState extends State<VueEvaluations> {
         saisir: _etat.peut(Permission.notesSaisir),
         verrouiller: _etat.peut(Permission.notesVerrouiller),
         surSaisie: () => _saisir(d, d.evaluations[i]),
+        surFiche: _etat.peut(Permission.documentsGenerer)
+            ? () => _imprimerFiche(d, d.evaluations[i].evaluation)
+            : null,
         surStats: () => _stats(d, d.evaluations[i]),
         surModifier: () => _modifier(d, d.evaluations[i]),
         surValidation: () => _basculerValidation(d.evaluations[i]),
         surSuppression: () => _supprimer(d.evaluations[i]),
+      ),
+    );
+  }
+
+  /// Ouvre l'impression d'une fiche de notes : celle d'une évaluation précise
+  /// ([evaluation]) ou, sans elle, celle de la classe.
+  Future<void> _imprimerFiche(_DonneesEvaluations d, [Evaluation? evaluation]) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => DialogueFicheNotes(
+        etat: _etat,
+        classe: d.classe!,
+        evaluation: evaluation,
+        periodeInitiale: _mois == null ? '' : libelleMois(_mois!),
+        maintenant: widget.maintenant,
       ),
     );
   }
@@ -414,6 +440,7 @@ class _CarteEvaluation extends StatelessWidget {
     required this.saisir,
     required this.verrouiller,
     required this.surSaisie,
+    required this.surFiche,
     required this.surStats,
     required this.surModifier,
     required this.surValidation,
@@ -426,6 +453,9 @@ class _CarteEvaluation extends StatelessWidget {
   final bool saisir;
   final bool verrouiller;
   final VoidCallback surSaisie;
+
+  /// Imprime la fiche vierge de l'évaluation ; null sans l'autorisation.
+  final VoidCallback? surFiche;
   final VoidCallback surStats;
   final VoidCallback surModifier;
   final VoidCallback surValidation;
@@ -503,6 +533,13 @@ class _CarteEvaluation extends StatelessWidget {
                 icon: Icon(saisir && !fige ? Icons.edit_note : Icons.visibility_outlined, size: 18),
                 label: Text(saisir && !fige ? 'Saisir les notes' : 'Voir les notes'),
               ),
+              if (surFiche != null)
+                OutlinedButton.icon(
+                  key: Key('fiche_${e.id}'),
+                  onPressed: surFiche,
+                  icon: const Icon(Icons.print_outlined, size: 18),
+                  label: const Text('Fiche à imprimer'),
+                ),
               OutlinedButton.icon(
                 key: Key('stats_${e.id}'),
                 onPressed: surStats,

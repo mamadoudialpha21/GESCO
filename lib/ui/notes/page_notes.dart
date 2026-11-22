@@ -12,6 +12,7 @@ import '../commun/composants.dart';
 import '../commun/dialogues.dart';
 import '../theme.dart';
 import 'choix_classe.dart';
+import 'dialogue_fiche_notes.dart';
 import '../evaluations/vue_evaluations.dart';
 import 'grille_notes.dart';
 import 'historique_notes.dart';
@@ -211,6 +212,19 @@ class _VueSaisieState extends State<VueSaisie> {
     );
   }
 
+  /// Ouvre la fenêtre d'impression de la fiche de notes de la classe.
+  Future<void> _ouvrirFiche(ClasseResume classe, Periode periode) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => DialogueFicheNotes(
+        etat: _etat,
+        classe: classe,
+        periodeInitiale: periode.libelle,
+        maintenant: widget.maintenant,
+      ),
+    );
+  }
+
   /// Verrouille le mois affiché (avec confirmation) ou le déverrouille.
   Future<void> _basculerVerrou(int classeId, String classeNom, Periode periode) async {
     if (!periode.saisissable) return;
@@ -289,6 +303,9 @@ class _VueSaisieState extends State<VueSaisie> {
       periode: periode,
       verrouille: d.moisVerrouilles.contains(periode.numero) && periode.saisissable,
       peutVerrouiller: _etat.peut(Permission.notesVerrouiller),
+      surFiche: _etat.peut(Permission.documentsGenerer)
+          ? () => _ouvrirFiche(classe, periode)
+          : null,
       surClasse: widget.surClasse,
       surPeriode: (p) => setState(() => _periode = p),
       surVerrou: () => _basculerVerrou(classe.classe.id, classe.classe.nom, periode),
@@ -345,6 +362,7 @@ class _Selection extends StatelessWidget {
     required this.periode,
     required this.verrouille,
     required this.peutVerrouiller,
+    required this.surFiche,
     required this.surClasse,
     required this.surPeriode,
     required this.surVerrou,
@@ -358,6 +376,9 @@ class _Selection extends StatelessWidget {
   final Periode periode;
   final bool verrouille;
   final bool peutVerrouiller;
+
+  /// Ouvre l'impression de la fiche de notes ; null si le compte n'a pas le droit.
+  final VoidCallback? surFiche;
   final ValueChanged<int> surClasse;
   final ValueChanged<Periode> surPeriode;
   final VoidCallback surVerrou;
@@ -398,6 +419,13 @@ class _Selection extends StatelessWidget {
                   onPressed: peutVerrouiller ? surVerrou : null,
                   icon: Icon(verrouille ? Icons.lock_open : Icons.lock_outline, size: 18),
                   label: Text(verrouille ? 'Déverrouiller le mois' : 'Verrouiller le mois'),
+                ),
+              if (surFiche != null)
+                OutlinedButton.icon(
+                  key: const Key('bouton_fiche_notes'),
+                  onPressed: surFiche,
+                  icon: const Icon(Icons.print_outlined, size: 18),
+                  label: const Text('Fiche de notes'),
                 ),
             ],
           ),
