@@ -325,6 +325,19 @@ void main() {
     await etape('15_notes_annee', () async =>
         toucher(find.byKey(const Key('periode_annee'))));
 
+    // Fiche de notes à remettre au professeur : fenêtre d'impression.
+    await toucher(find.byKey(const Key('menu_notes')));
+    await etape('26_notes_fiche_dialogue', () async {
+      await toucher(find.byKey(const Key('periode_m11')));
+      await toucher(find.byKey(const Key('bouton_fiche_notes')));
+      for (var i = 0; i < 20; i++) {
+        if (find.byKey(const Key('fiche_contenu')).evaluate().isNotEmpty) break;
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    });
+    await toucherSiPresent(find.byKey(const Key('fiche_fermer')));
+
     // Petit écran (téléphone).
     await taille(420, 860);
     await toucher(find.text('Accueil').first);

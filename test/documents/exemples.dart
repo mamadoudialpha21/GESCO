@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:gesco/documents/elements_pdf.dart';
 import 'package:gesco/documents/modele_bulletin.dart';
 import 'package:gesco/documents/modele_classement.dart';
+import 'package:gesco/documents/modele_fiche_notes.dart';
 import 'package:gesco/documents/polices_pdf.dart';
 import 'package:gesco/domain/statistiques.dart';
 
@@ -228,4 +229,43 @@ EnteteEtablissement enteteExemple({bool avecImages = true}) => EnteteEtablisseme
       devise: 'Travail - Justice - Solidarité',
       infosAdmin: 'Agrément n° 0123/MEPU-A/2020\nBP 1234 Conakry',
       logo: avecImages ? image('logo_exemple.png') : null,
+    );
+
+/// Fiche de notes d'exemple : [nbEleves] élèves, colonnes vides à remplir.
+/// Sans [matiere] (null), c'est une liste de classe.
+FicheNotes ficheNotesExemple({
+  int nbEleves = 20,
+  String? matiere = 'Mathématiques',
+  List<String> intitules = const ['Note 1', 'Note 2', 'Note 3'],
+  bool avecMatricule = true,
+  bool avecSexe = false,
+  bool avecObservations = true,
+  String enseignant = 'KANTE Moussa',
+}) =>
+    FicheNotes(
+      entete: const EnteteEtablissement(
+        nom: 'Groupe Scolaire Test',
+        adresse: 'Tombolia, Conakry',
+        telephone: '622 00 00 00',
+        devise: 'Travail - Justice - Solidarité',
+      ),
+      classeNom: '10e A',
+      anneeLibelle: '2026-2027',
+      matiereNom: matiere,
+      enseignant: enseignant,
+      periode: 'Novembre',
+      intitules: intitules,
+      avecMatricule: avecMatricule,
+      avecSexe: avecSexe,
+      avecObservations: avecObservations,
+      lignes: [
+        for (var i = 1; i <= nbEleves; i++)
+          LigneFicheNotes(
+            numero: i,
+            nom: 'ÉLÈVE${i.toString().padLeft(2, '0')} Aminata-Binta',
+            matricule: '2026-${i.toString().padLeft(4, '0')}',
+            sexe: i.isEven ? 'F' : 'M',
+          ),
+      ],
+      dateEdition: DateTime(2026, 11, 22),
     );

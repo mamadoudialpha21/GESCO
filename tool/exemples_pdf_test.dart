@@ -9,8 +9,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gesco/documents/modele_bulletin.dart';
 import 'package:gesco/documents/modele_classement.dart';
+import 'package:gesco/documents/modele_fiche_notes.dart';
 import 'package:gesco/documents/pdf_bulletin.dart';
 import 'package:gesco/documents/pdf_classement.dart';
+import 'package:gesco/documents/pdf_fiche_notes.dart';
 import 'package:gesco/documents/styles_bulletin.dart';
 
 import '../test/documents/exemples.dart';
@@ -60,6 +62,39 @@ void main() {
       // ignore: avoid_print
       print('PDF $nom : ${pdf.pages} page(s), ${pdf.octets.length} octets');
     }
+
+    Future<void> ecrireFiches(String nom, List<FicheNotes> fiches, StyleBulletin style) async {
+      final pdf = await genererFichesNotesPdf(fiches, style: style, polices: p);
+      File('${dossier.path}/$nom.pdf').writeAsBytesSync(pdf.octets);
+      // ignore: avoid_print
+      print('PDF $nom : ${pdf.pages} page(s), ${pdf.octets.length} octets');
+    }
+
+    await ecrireFiches('fiche_notes', [ficheNotesExemple(nbEleves: 30)], classique);
+    await ecrireFiches(
+        'fiche_notes_paysage',
+        [
+          ficheNotesExemple(
+            nbEleves: 24,
+            intitules: ['Interro 1', 'Interro 2', 'Devoir 1', 'Devoir 2', 'Compo', 'Oral', 'TP', 'Bonus'],
+            avecSexe: true,
+          ),
+        ],
+        StyleBulletin.vertSauge);
+    await ecrireFiches(
+        'fiche_notes_liste_classe',
+        [ficheNotesExemple(nbEleves: 28, matiere: null, intitules: const [], avecSexe: true)],
+        StyleBulletin.couleursGuineennes);
+    await ecrireFiches(
+        'fiche_notes_evaluation',
+        [
+          ficheNotesExemple(
+            nbEleves: 26,
+            intitules: ['Devoir n° 2'],
+            enseignant: '',
+          ),
+        ],
+        StyleBulletin.bleuEtOr);
 
     await ecrireClassement('classement_general', classementExemple(), classique);
     await ecrireClassement('classement_40_eleves', classementExemple(nbEleves: 40),
