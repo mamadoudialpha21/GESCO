@@ -309,6 +309,15 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
     });
+    // Appréciations proposées automatiquement d'après les notes et le classement.
+    await etape('27_resultats_appreciations', () async {
+      await toucher(find.byKey(const Key('vue_appreciations')));
+      for (var i = 0; i < 100; i++) {
+        if (find.byKey(const Key('appr_tout_utiliser')).evaluate().isNotEmpty) break;
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    });
     await toucherSiPresent(find.byKey(const Key('menu_tableau_de_bord')));
     await etape('25_tableau_de_bord_cycles', () async {});
 

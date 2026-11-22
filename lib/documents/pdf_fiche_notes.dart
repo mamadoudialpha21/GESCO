@@ -255,7 +255,8 @@ class _PageFicheNotes {
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Text(titre, style: o.st(8.5, couleur: s.discret, gras: true)),
-          if (detail.isNotEmpty) pw.Text(detail, style: o.st(8, couleur: s.discret)),
+          // Ligne toujours présente (même vide) : les trois traits restent alignés.
+          pw.Text(detail.isEmpty ? ' ' : detail, style: o.st(8, couleur: s.discret)),
           pw.SizedBox(height: 34),
           pw.Container(
             margin: const pw.EdgeInsets.symmetric(horizontal: 14),
