@@ -54,6 +54,12 @@ jobs:
           sudo apt-get install -y poppler-utils
           for f in captures/*.pdf; do pdftoppm -r 80 -png -f 1 -l 2 "$f" "${f%.pdf}"; done
 
+      # Classeurs Excel d'exemple (exports, liste vierge) : servent à vérifier
+      # le rendu réel des fichiers. Ne bloque jamais le workflow.
+      - name: Classeurs Excel d'exemple
+        continue-on-error: true
+        run: flutter test tool/exemples_excel_test.dart --reporter expanded
+
       - name: Publier les captures sur la branche « captures »
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
@@ -62,6 +68,7 @@ jobs:
             tmp=$(mktemp -d)
             cp captures/*.png "$tmp"/
             cp captures/*.pdf "$tmp"/ 2>/dev/null || true
+            cp captures/*.xlsx "$tmp"/ 2>/dev/null || true
             git config user.name "github-actions"
             git config user.email "github-actions@users.noreply.github.com"
             git checkout --orphan captures
@@ -69,6 +76,7 @@ jobs:
             cp "$tmp"/* .
             git add -- *.png
             if ls *.pdf >/dev/null 2>&1; then git add -- *.pdf; fi
+            if ls *.xlsx >/dev/null 2>&1; then git add -- *.xlsx; fi
             git commit --quiet -m "Captures d'ecran (execution ${{ github.run_id }})"
             git push --force origin captures
           else
