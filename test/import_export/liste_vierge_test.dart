@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide Evaluation;
 import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/data/modeles_notation.dart';
 import 'package:gesco/import_export/liste_vierge.dart';

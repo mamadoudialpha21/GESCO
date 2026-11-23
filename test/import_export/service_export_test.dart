@@ -525,17 +525,17 @@ void main() {
       final fichiers = await creer(classeId: classeA, enseignantId: ens1);
       final (f, lu) = fichiers.single;
       expect(f.feuilles, ['Maths', feuilleTechnique]);
-      final maths = lu.feuille('Maths')!;
-      expect(maths.cellule(0, 0).texte, 'Groupe Scolaire Test');
-      expect(maths.cellule(3, 2).texte, '10e A');
-      expect(maths.cellule(4, 2).texte, 'Maths');
-      expect(maths.cellule(5, 2).texte, 'DIALLO Aminata');
-      expect(maths.cellule(6, 2).texte, 'Novembre');
-      expect(maths.cellule(ligneEnteteTableau, 3).texte, startsWith('Interrogation 1'));
-      expect(maths.cellule(ligneEnteteTableau, 4).texte, startsWith('Interrogation 2'));
-      expect(maths.cellule(premiereLigneEleves, colonneMatricule).texte, '2026-0001');
-      expect(maths.cellule(premiereLigneEleves + 1, colonneMatricule).texte, '2026-0002');
-      expect(maths.cellule(premiereLigneEleves + 2, colonneMatricule).vide, isTrue,
+      final feuilleMaths = lu.feuille('Maths')!;
+      expect(feuilleMaths.cellule(0, 0).texte, 'Groupe Scolaire Test');
+      expect(feuilleMaths.cellule(3, 2).texte, '10e A');
+      expect(feuilleMaths.cellule(4, 2).texte, 'Maths');
+      expect(feuilleMaths.cellule(5, 2).texte, 'DIALLO Aminata');
+      expect(feuilleMaths.cellule(6, 2).texte, 'Novembre');
+      expect(feuilleMaths.cellule(ligneEnteteTableau, 3).texte, startsWith('Interrogation 1'));
+      expect(feuilleMaths.cellule(ligneEnteteTableau, 4).texte, startsWith('Interrogation 2'));
+      expect(feuilleMaths.cellule(premiereLigneEleves, colonneMatricule).texte, '2026-0001');
+      expect(feuilleMaths.cellule(premiereLigneEleves + 1, colonneMatricule).texte, '2026-0002');
+      expect(feuilleMaths.cellule(premiereLigneEleves + 2, colonneMatricule).vide, isTrue,
           reason: 'SOW est parti');
 
       final t = lu.feuille(feuilleTechnique)!;

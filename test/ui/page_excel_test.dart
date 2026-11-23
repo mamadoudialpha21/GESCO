@@ -120,6 +120,9 @@ void main() {
   String texte(WidgetTester tester, String cle) =>
       tester.widget<Text>(find.byKey(Key(cle))).data!;
 
+  String texteSelectionnable(WidgetTester tester, String cle) =>
+      tester.widget<SelectableText>(find.byKey(Key(cle))).data!;
+
   List<File> classeurs() => [
         for (final f in dossier.listSync())
           if (f is File && f.path.endsWith('.xlsx')) f,
@@ -140,7 +143,7 @@ void main() {
           'Fichier créé : Liste complète des élèves (1 feuille).');
       final fichiers = classeurs();
       expect(fichiers, hasLength(1));
-      expect(texte(tester, 'excel_fichier_0'), fichiers.single.path);
+      expect(texteSelectionnable(tester, 'excel_fichier_0'), fichiers.single.path);
       expect(ouverts, [fichiers.single.path], reason: 'le fichier s\'ouvre dans Excel');
       expect(find.byKey(const Key('excel_non_ouvert')), findsNothing);
 
@@ -224,6 +227,7 @@ void main() {
 
       // Classements : la matière n'apparaît qu'avec une classe.
       await choisir(tester, 'excel_type', 'Classements');
+      await choisir(tester, 'excel_classe', 'Toutes les classes');
       expect(find.byKey(const Key('excel_matiere')), findsNothing);
       await choisir(tester, 'excel_classe', '10e A');
       expect(find.byKey(const Key('excel_matiere')), findsOneWidget);
