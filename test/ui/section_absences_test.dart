@@ -170,7 +170,13 @@ void main() {
           '03/11/2026');
       await tester.enterText(find.byKey(const Key('absence_motif')), 'Nouveau');
       await valider(tester);
-      await attendre(tester, find.text('Nouveau'));
+      // Attendre la ligne rechargée : le champ du dialogue (en fermeture)
+      // contient aussi « Nouveau » et ne prouve rien.
+      await attendre(
+        tester,
+        find.descendant(of: find.byKey(Key('absence_$id')), matching: find.text('Nouveau')),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Ancien'), findsNothing);
       await fin(tester);
     });

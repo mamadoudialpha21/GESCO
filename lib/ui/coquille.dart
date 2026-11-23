@@ -6,6 +6,7 @@ import '../app/etat_app.dart';
 import '../domain/permissions.dart';
 import 'acces/ecran_mot_de_passe.dart';
 import 'commun/composants.dart';
+import 'excel/page_excel.dart';
 import 'inscriptions/page_inscriptions.dart';
 import 'notes/page_notes.dart';
 import 'parametres/page_parametres.dart';
@@ -78,6 +79,14 @@ const List<_Destination> _destinations = [
     permission: Permission.resultatsVoir,
   ),
   _Destination(
+    cle: 'excel',
+    titre: 'Fichiers Excel',
+    libelleCourt: 'Excel',
+    icone: Icons.table_chart_outlined,
+    iconeActive: Icons.table_chart,
+    permission: Permission.importExport,
+  ),
+  _Destination(
     cle: 'parametres',
     titre: 'Paramètres',
     libelleCourt: 'Paramètres',
@@ -131,6 +140,10 @@ class _CoquilleState extends State<Coquille> {
           allerAuxInscriptions: () => _aller('inscriptions'),
         ),
       'resultats' => PageResultats(
+          etat: etat,
+          allerAuxParametres: () => _aller('parametres'),
+        ),
+      'excel' => PageExcel(
           etat: etat,
           allerAuxParametres: () => _aller('parametres'),
         ),

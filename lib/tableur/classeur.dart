@@ -77,8 +77,12 @@ enum StyleCellule {
   /// Ligne d'en-tête d'un tableau : fond foncé, texte blanc, gras.
   entete,
 
-  /// Texte explicatif, en italique gris.
+  /// Texte explicatif, en italique gris (retour à la ligne dans la cellule).
   consigne,
+
+  /// Ligne d'information en italique gris, sur une seule ligne : le texte
+  /// déborde sur les cellules voisines vides au lieu de rendre la ligne haute.
+  discret,
 
   /// Étiquette d'une information (gras).
   etiquette,

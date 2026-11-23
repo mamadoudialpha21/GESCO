@@ -84,6 +84,52 @@ class EleveDepot {
     return liste;
   }
 
+  /// Fiches complètes (sans la photo) des élèves inscrits pour l'année, avec
+  /// leur inscription : pour les exports Excel. Triées comme [lister]. Les
+  /// dossiers archivés sont exclus.
+  Future<List<(Eleve, EleveInscrit)>> fichesInscrits(int anneeId) async {
+    final lignes = await _db.rawQuery(
+      '''
+      SELECT e.id, e.matricule, e.nom, e.prenom, e.sexe, e.date_naissance,
+             e.lieu_naissance, e.nom_pere, e.nom_mere, e.contact_parent,
+             e.adresse, e.telephone, e.nom_tuteur, e.contact_tuteur, e.archive,
+             i.id AS inscription_id, i.classe_id, c.nom AS classe_nom, i.statut
+      FROM inscription i
+      JOIN eleve e ON e.id = i.eleve_id
+      JOIN classe c ON c.id = i.classe_id
+      WHERE i.annee_id = ? AND e.archive = 0
+      ''',
+      [anneeId],
+    );
+    final liste = [
+      for (final l in lignes)
+        (
+          _depuis(l),
+          EleveInscrit(
+            inscriptionId: l['inscription_id'] as int,
+            eleveId: l['id'] as int,
+            classeId: l['classe_id'] as int,
+            classeNom: l['classe_nom'] as String,
+            matricule: l['matricule'] as String,
+            nom: l['nom'] as String,
+            prenom: l['prenom'] as String,
+            sexe: l['sexe'] as String,
+            dateNaissance: l['date_naissance'] as String?,
+            statut: StatutInscription.depuisCle(l['statut'] as String?),
+          ),
+        ),
+    ];
+    liste.sort((a, b) {
+      final parNom = normaliserRecherche(a.$1.nom).compareTo(normaliserRecherche(b.$1.nom));
+      if (parNom != 0) return parNom;
+      final parPrenom =
+          normaliserRecherche(a.$1.prenom).compareTo(normaliserRecherche(b.$1.prenom));
+      if (parPrenom != 0) return parPrenom;
+      return a.$2.inscriptionId.compareTo(b.$2.inscriptionId);
+    });
+    return liste;
+  }
+
   /// Fiche complète d'un élève (avec la photo), ou null.
   Future<Eleve?> obtenir(int eleveId) async {
     final lignes = await _db.query(

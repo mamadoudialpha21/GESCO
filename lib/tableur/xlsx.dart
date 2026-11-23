@@ -84,6 +84,10 @@ xl.CellStyle _style(StyleCellule s) => switch (s) {
           fontColorHex: xl.ExcelColor.fromHexString('FF5A6270'),
           textWrapping: xl.TextWrapping.WrapText,
         ),
+      StyleCellule.discret => xl.CellStyle(
+          italic: true,
+          fontColorHex: xl.ExcelColor.fromHexString('FF5A6270'),
+        ),
       StyleCellule.etiquette => xl.CellStyle(bold: true),
       StyleCellule.saisie => xl.CellStyle(
           backgroundColorHex: xl.ExcelColor.fromHexString('FFFFF8DC'),

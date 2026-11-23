@@ -40,15 +40,17 @@ String nomDeFichierSur(String nom) {
   return s.isEmpty ? 'document' : s;
 }
 
-/// Enregistre le PDF dans [dossier] (par défaut « Documents\GESCO ») sous un
-/// nom qui ne remplace jamais un fichier existant : `nom_AAAAMMJJ-HHMMSS.pdf`,
-/// suivi de `_2`, `_3`... en cas de collision.
+/// Enregistre [octets] dans [dossier] (par défaut « Documents\GESCO ») sous un
+/// nom qui ne remplace jamais un fichier existant :
+/// `nom_AAAAMMJJ-HHMMSS.extension`, suivi de `_2`, `_3`... en cas de collision.
 ///
 /// L'écriture passe par un fichier temporaire : un arrêt en cours d'écriture
-/// ne laisse jamais un PDF tronqué.
-Future<File> enregistrerPdf(
-  DocumentPdf pdf,
-  String nom, {
+/// ne laisse jamais un fichier tronqué. Après l'écriture, la taille du fichier
+/// est relue : une erreur est levée si elle ne correspond pas.
+Future<File> enregistrerFichier(
+  List<int> octets,
+  String nom,
+  String extension, {
   Directory? dossier,
   DateTime? maintenant,
 }) async {
@@ -60,15 +62,28 @@ Future<File> enregistrerPdf(
       '${t.year}${deux(t.month)}${deux(t.day)}-${deux(t.hour)}${deux(t.minute)}${deux(t.second)}';
   final base = '${nomDeFichierSur(nom)}_$horodatage';
 
-  var fichier = File(p.join(cible.path, '$base.pdf'));
+  var fichier = File(p.join(cible.path, '$base.$extension'));
   for (var i = 2; fichier.existsSync(); i++) {
-    fichier = File(p.join(cible.path, '${base}_$i.pdf'));
+    fichier = File(p.join(cible.path, '${base}_$i.$extension'));
   }
   final temporaire = File('${fichier.path}.tmp');
-  await temporaire.writeAsBytes(pdf.octets, flush: true);
+  await temporaire.writeAsBytes(octets, flush: true);
   await temporaire.rename(fichier.path);
+  if (await fichier.length() != octets.length) {
+    throw FileSystemException('Le fichier enregistré est incomplet.', fichier.path);
+  }
   return fichier;
 }
+
+/// Enregistre le PDF dans [dossier] (par défaut « Documents\GESCO ») sous un
+/// nom qui ne remplace jamais un fichier existant (voir [enregistrerFichier]).
+Future<File> enregistrerPdf(
+  DocumentPdf pdf,
+  String nom, {
+  Directory? dossier,
+  DateTime? maintenant,
+}) =>
+    enregistrerFichier(pdf.octets, nom, 'pdf', dossier: dossier, maintenant: maintenant);
 
 /// Écrit [octets] dans [cible] en remplaçant le fichier existant, sans jamais
 /// laisser un fichier tronqué : l'écriture passe par un fichier temporaire
