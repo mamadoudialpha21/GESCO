@@ -303,6 +303,26 @@ class Eleve {
   }
 }
 
+/// Ce qui permet de reconnaître un élève déjà enregistré (import Excel :
+/// doublons de matricule ou de personne). Ne contient pas la photo.
+class IdentiteEleve {
+  const IdentiteEleve({
+    required this.matricule,
+    required this.nom,
+    required this.prenom,
+    this.dateNaissance,
+    this.archive = false,
+  });
+
+  final String matricule;
+  final String nom;
+  final String prenom;
+
+  /// « AAAA-MM-JJ » ou null.
+  final String? dateNaissance;
+  final bool archive;
+}
+
 /// Un élève inscrit dans une classe pour une année (ligne des listes).
 /// Ne contient pas la photo, pour que les listes restent légères.
 class EleveInscrit {

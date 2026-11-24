@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart' hide Evaluation;
 import 'package:gesco/data/modeles_absences.dart';
 import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/data/modeles_notation.dart';
-import 'package:gesco/domain/periodes.dart';
+import 'package:gesco/domain/calendrier.dart';
 import 'package:gesco/import_export/exports_excel.dart';
 import 'package:gesco/import_export/liste_vierge.dart';
 import 'package:gesco/import_export/modele_export.dart';

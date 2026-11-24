@@ -11,6 +11,18 @@ import '../modeles_donnees.dart';
 import '../validation_eleve.dart';
 import 'aides.dart';
 
+/// Un élève à créer lors d'un import : sa fiche, sa classe et la ligne du
+/// fichier d'où il vient (pour les messages d'erreur).
+class EleveAImporter {
+  const EleveAImporter({required this.eleve, required this.classeId, required this.ligne});
+
+  final Eleve eleve;
+  final int classeId;
+
+  /// Numéro de la ligne dans le fichier Excel.
+  final int ligne;
+}
+
 /// Élèves et inscriptions.
 ///
 /// Les informations personnelles d'un élève sont enregistrées une seule fois
@@ -172,6 +184,25 @@ class EleveDepot {
     return [for (final l in lignes) l['matricule'] as String];
   }
 
+  /// Identité de tous les élèves enregistrés, dossiers archivés compris :
+  /// sert à repérer les doublons avant un import.
+  Future<List<IdentiteEleve>> identites() async {
+    final lignes = await _db.query(
+      'eleve',
+      columns: ['matricule', 'nom', 'prenom', 'date_naissance', 'archive'],
+    );
+    return [
+      for (final l in lignes)
+        IdentiteEleve(
+          matricule: l['matricule'] as String,
+          nom: l['nom'] as String,
+          prenom: l['prenom'] as String,
+          dateNaissance: l['date_naissance'] as String?,
+          archive: ((l['archive'] as int?) ?? 0) == 1,
+        ),
+    ];
+  }
+
   /// Nombre de notes (mensuelles et d'évaluations) enregistrées pour une
   /// inscription.
   Future<int> compterNotes(int inscriptionId) => _compterNotes(_db, inscriptionId);
@@ -309,6 +340,58 @@ class EleveDepot {
       details: '${eleve.nom.trim()} ${eleve.prenom.trim()} (${eleve.matricule.trim()})',
     );
     return id;
+  }
+
+  /// Crée tous les élèves de [lot] et les inscrit dans leur classe pour
+  /// [anneeId], en une seule transaction : si une seule ligne est refusée,
+  /// **rien** n'est enregistré et l'erreur indique la ligne du fichier.
+  ///
+  /// Chaque fiche passe les mêmes contrôles qu'une inscription manuelle
+  /// (champs, matricule libre, classe de l'année, capacité sauf
+  /// [depasserCapacite], année non archivée). Retourne le nombre d'élèves créés.
+  Future<int> importerLot(
+    List<EleveAImporter> lot, {
+    required int anneeId,
+    bool depasserCapacite = false,
+    String source = '',
+  }) async {
+    controle.exiger(Permission.importExport, 'importer des élèves');
+    controle.exiger(Permission.elevesGerer, 'inscrire un élève');
+    if (lot.isEmpty) throw const ErreurGesco('Aucun élève à importer.');
+    final nb = await _db.transaction<int>((txn) async {
+      await _verifierAnneeOuverte(txn, anneeId);
+      final pris = {
+        for (final l in await txn.query('eleve', columns: ['matricule']))
+          (l['matricule'] as String).toLowerCase(),
+      };
+      final classesVerifiees = <int>{};
+      for (final e in lot) {
+        try {
+          _verifier(e.eleve);
+          if (classesVerifiees.add(e.classeId)) {
+            await _verifierClasse(txn, e.classeId, anneeId);
+          }
+          if (!pris.add(e.eleve.matricule.trim().toLowerCase())) {
+            throw ErreurGesco('Le matricule « ${e.eleve.matricule.trim()} » est déjà utilisé.');
+          }
+          await _verifierCapacite(txn, e.classeId, depasserCapacite);
+          final eleveId = await txn.insert('eleve', _valeurs(e.eleve));
+          await _inscrire(txn, eleveId, e.classeId, anneeId, 'inscription');
+        } on ErreurGesco catch (err) {
+          throw ErreurGesco(
+            'Ligne ${e.ligne} : ${err.message}\nAucun élève n\'a été importé.',
+          );
+        }
+      }
+      return lot.length;
+    });
+    await controle.noter(
+      'import_eleves',
+      'eleve',
+      details: '${pluriel(nb, 'élève')} importé${nb > 1 ? 's' : ''} depuis Excel'
+          '${source.isEmpty ? '' : ' ($source)'}',
+    );
+    return nb;
   }
 
   /// Inscrit un élève déjà connu (réinscription d'une année à l'autre).
