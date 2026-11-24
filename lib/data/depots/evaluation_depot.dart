@@ -372,37 +372,14 @@ class EvaluationDepot {
       for (final entree in notes.entries) entree.key: _versLigne(entree.value, e.bareme),
     };
     try {
-      await _db.transaction<void>((txn) async {
-        for (final entree in lignes.entries) {
-          final ligne = entree.value;
-          if (ligne == null) {
-            await txn.delete(
-              'evaluation_note',
-              where: 'evaluation_id = ? AND inscription_id = ?',
-              whereArgs: [evaluationId, entree.key],
-            );
-            continue;
-          }
-          final valeurs = <String, Object?>{
-            'etat': ligne.etat,
-            'brut': ligne.brut,
-            'modifie_le': _maintenant().toIso8601String(),
-          };
-          final modifiees = await txn.update(
-            'evaluation_note',
-            valeurs,
-            where: 'evaluation_id = ? AND inscription_id = ?',
-            whereArgs: [evaluationId, entree.key],
-          );
-          if (modifiees == 0) {
-            await txn.insert('evaluation_note', {
-              'evaluation_id': evaluationId,
-              'inscription_id': entree.key,
-              ...valeurs,
-            });
-          }
-        }
-      });
+      await _db.transaction<void>(
+        (txn) => _ecrireNotes(
+          txn,
+          evaluationId,
+          lignes,
+          maintenant: _maintenant().toIso8601String(),
+        ),
+      );
     } on DatabaseException catch (ex) {
       final traduite = erreurDeDeclencheur(ex);
       if (traduite != null) throw traduite;
@@ -412,6 +389,232 @@ class EvaluationDepot {
       rethrow;
     }
     _signaler(e);
+  }
+
+  /// Écrit des notes déjà converties (ligne null : note effacée) dans une
+  /// transaction ouverte.
+  static Future<void> _ecrireNotes(
+    DatabaseExecutor txn,
+    int evaluationId,
+    Map<int, ({String etat, int? brut})?> lignes, {
+    String? maintenant,
+  }) async {
+    final quand = maintenant ?? DateTime.now().toIso8601String();
+    for (final entree in lignes.entries) {
+      final ligne = entree.value;
+      if (ligne == null) {
+        await txn.delete(
+          'evaluation_note',
+          where: 'evaluation_id = ? AND inscription_id = ?',
+          whereArgs: [evaluationId, entree.key],
+        );
+        continue;
+      }
+      final valeurs = <String, Object?>{
+        'etat': ligne.etat,
+        'brut': ligne.brut,
+        'modifie_le': quand,
+      };
+      final modifiees = await txn.update(
+        'evaluation_note',
+        valeurs,
+        where: 'evaluation_id = ? AND inscription_id = ?',
+        whereArgs: [evaluationId, entree.key],
+      );
+      if (modifiees == 0) {
+        await txn.insert('evaluation_note', {
+          'evaluation_id': evaluationId,
+          'inscription_id': entree.key,
+          ...valeurs,
+        });
+      }
+    }
+  }
+
+  /// Importe les notes d'un fichier : crée les évaluations qui n'existent pas
+  /// encore, puis écrit les notes de chaque colonne. **Tout ou rien** : si une
+  /// seule vérification échoue, rien n'est créé ni écrit.
+  ///
+  /// Les contrôles de la vérification du fichier sont refaits ici, dans la
+  /// transaction, car la base a pu changer entre-temps : évaluation validée,
+  /// mois verrouillé, élève parti, doublon d'évaluation.
+  Future<ResultatImportNotes> importerNotes({
+    required int classeId,
+    required int matiereId,
+    required List<ColonneNotesAImporter> colonnes,
+  }) async {
+    controle.exiger(Permission.importExport, 'importer des notes');
+    controle.exiger(Permission.notesSaisir, 'saisir des notes');
+    if (colonnes.any((c) => c.creer)) {
+      controle.exiger(Permission.evaluationsGerer, 'créer une évaluation');
+    }
+    if (colonnes.isEmpty || colonnes.every((c) => c.notes.isEmpty)) {
+      throw const ErreurGesco('Aucune note à importer.');
+    }
+    final titres = <int, String>{};
+    for (var i = 0; i < colonnes.length; i++) {
+      final c = colonnes[i];
+      if (c.creer) {
+        titres[i] = _titreValide(c.titre);
+        _verifierMois(c.mois);
+        _verifierCoefficient(c.coefficient);
+        _verifierBareme(c.bareme);
+      }
+    }
+    final dejaVues = <int>{};
+    for (final c in colonnes) {
+      final id = c.evaluationId;
+      if (id != null && !dejaVues.add(id)) {
+        throw const ErreurGesco('Deux colonnes visent la même évaluation.');
+      }
+    }
+    await _verifierEnseignant(_db, matiereId);
+
+    final maintenant = _maintenant();
+    final ids = <int>[];
+    final touchees = <Evaluation>[];
+    final creations = <(int, String, int)>[];
+    var nbNotes = 0;
+    var nbRemplacees = 0;
+    try {
+      await _db.transaction<void>((txn) async {
+        final matieres = await txn.query(
+          'matiere_classe',
+          columns: ['classe_id'],
+          where: 'id = ?',
+          whereArgs: [matiereId],
+        );
+        if (matieres.isEmpty) throw const ErreurGesco('Matière introuvable.');
+        if (matieres.first['classe_id'] != classeId) {
+          throw const ErreurGesco('Cette matière n\'appartient pas à la classe.');
+        }
+        final actifs = {
+          for (final l in await txn.query(
+            'inscription',
+            columns: ['id'],
+            where: "classe_id = ? AND statut = 'inscrit'",
+            whereArgs: [classeId],
+          ))
+            l['id'] as int,
+        };
+
+        for (var i = 0; i < colonnes.length; i++) {
+          final colonne = colonnes[i];
+          for (final inscription in colonne.notes.keys) {
+            if (!actifs.contains(inscription)) {
+              throw const ErreurGesco(
+                'Une note concerne un élève qui ne suit pas (ou plus) cette classe : '
+                'relancez la vérification du fichier.',
+              );
+            }
+          }
+          final Evaluation evaluation;
+          if (colonne.evaluationId == null) {
+            final titre = titres[i]!;
+            await _verifierMoisLibre(txn, classeId, colonne.mois);
+            final doublon = await compter(
+              txn,
+              'SELECT COUNT(*) FROM evaluation WHERE matiere_id = ? AND mois = ? '
+              'AND LOWER(titre) = LOWER(?)',
+              [matiereId, colonne.mois, titre],
+            );
+            if (doublon > 0) {
+              throw ErreurGesco(
+                'Une évaluation « $titre » existe déjà en ${libelleMois(colonne.mois)} : '
+                'relancez la vérification du fichier.',
+              );
+            }
+            final id = await txn.insert('evaluation', {
+              'classe_id': classeId,
+              'matiere_id': matiereId,
+              'mois': colonne.mois,
+              'type': colonne.type.cle,
+              'titre': titre,
+              'date_evaluation': null,
+              'coefficient': colonne.coefficient,
+              'bareme': colonne.bareme,
+              'valide': 0,
+              'cree_le': horodatage(maintenant),
+            });
+            creations.add((id, titre, colonne.mois));
+            evaluation = Evaluation(
+              id: id,
+              classeId: classeId,
+              matiereId: matiereId,
+              mois: colonne.mois,
+              type: colonne.type,
+              titre: titre,
+              coefficient: colonne.coefficient,
+              bareme: colonne.bareme,
+            );
+          } else {
+            final lignesEvaluation = await txn.query(
+              'evaluation',
+              where: 'id = ?',
+              whereArgs: [colonne.evaluationId],
+            );
+            if (lignesEvaluation.isEmpty) throw const ErreurGesco('Évaluation introuvable.');
+            evaluation = _depuis(lignesEvaluation.first);
+            if (evaluation.classeId != classeId || evaluation.matiereId != matiereId) {
+              throw ErreurGesco(
+                'L\'évaluation « ${evaluation.titre} » n\'appartient pas à cette matière.',
+              );
+            }
+            _verifierModifiable(evaluation);
+            await _verifierMoisLibre(txn, classeId, evaluation.mois);
+          }
+
+          final lignes = <int, ({String etat, int? brut})?>{
+            for (final entree in colonne.notes.entries)
+              entree.key: _versLigne(entree.value, evaluation.bareme),
+          };
+          final existantes = {
+            for (final l in await txn.query(
+              'evaluation_note',
+              columns: ['inscription_id'],
+              where: 'evaluation_id = ?',
+              whereArgs: [evaluation.id],
+            ))
+              l['inscription_id'] as int,
+          };
+          nbRemplacees += colonne.notes.keys.where(existantes.contains).length;
+          nbNotes += lignes.length;
+          await _ecrireNotes(
+            txn,
+            evaluation.id,
+            lignes,
+            maintenant: maintenant.toIso8601String(),
+          );
+          ids.add(evaluation.id);
+          touchees.add(evaluation);
+        }
+      });
+    } on DatabaseException catch (ex) {
+      final traduite = erreurDeDeclencheur(ex);
+      if (traduite != null) throw traduite;
+      if (ex.toString().contains('FOREIGN KEY')) {
+        throw const ErreurGesco('Un élève n\'existe plus : relancez la vérification du fichier.');
+      }
+      rethrow;
+    }
+    for (final (id, titre, mois) in creations) {
+      await controle.noter('creation', 'evaluation', id: id, details: '$titre (${libelleMois(mois)})');
+    }
+    await controle.noter(
+      'import_notes',
+      'evaluation',
+      details: '${pluriel(nbNotes, 'note')} importée${nbNotes > 1 ? 's' : ''} dans '
+          '${pluriel(ids.length, 'évaluation')}',
+    );
+    for (final e in touchees) {
+      _signaler(e);
+    }
+    return ResultatImportNotes(
+      evaluationIds: ids,
+      nbEvaluationsCreees: creations.length,
+      nbNotes: nbNotes,
+      nbNotesRemplacees: nbRemplacees,
+    );
   }
 
   /// Statistiques d'une évaluation sur les élèves qui suivent la classe.
