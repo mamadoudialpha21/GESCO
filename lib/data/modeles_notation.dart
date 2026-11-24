@@ -4,7 +4,14 @@ library;
 
 import '../domain/arrondi.dart';
 import '../domain/bareme.dart';
+import '../domain/modeles.dart';
 import '../domain/periodes.dart';
+
+/// Longueur maximale du titre d'une évaluation.
+const int longueurMaxTitreEvaluation = 80;
+
+/// Plus grand coefficient d'une évaluation, en centièmes (99,99).
+const int coefficientMaxEvaluation = 9999;
 
 /// Nature d'une évaluation.
 enum TypeEvaluation {
@@ -220,4 +227,54 @@ class VerrouMois {
   final int mois;
   final String verrouilleLe;
   final String utilisateurNom;
+}
+
+/// Une colonne de notes à enregistrer par l'import : une évaluation qui existe
+/// déjà ([evaluationId]) ou à créer (null), avec les notes de chaque élève.
+class ColonneNotesAImporter {
+  const ColonneNotesAImporter({
+    this.evaluationId,
+    required this.titre,
+    required this.type,
+    required this.mois,
+    required this.bareme,
+    required this.coefficient,
+    required this.notes,
+  });
+
+  /// Évaluation existante qui reçoit les notes ; null : elle est créée.
+  final int? evaluationId;
+
+  /// Caractéristiques de l'évaluation à créer (ignorées si elle existe).
+  final String titre;
+  final TypeEvaluation type;
+  final int mois;
+  final int bareme;
+  final int coefficient;
+
+  /// inscription -> note, sur le barème de l'évaluation.
+  final Map<int, Saisie> notes;
+
+  bool get creer => evaluationId == null;
+}
+
+/// Ce qu'un import de notes a réellement écrit.
+class ResultatImportNotes {
+  const ResultatImportNotes({
+    required this.evaluationIds,
+    required this.nbEvaluationsCreees,
+    required this.nbNotes,
+    required this.nbNotesRemplacees,
+  });
+
+  /// Évaluation de chaque colonne importée, dans l'ordre de l'import
+  /// (existante ou créée).
+  final List<int> evaluationIds;
+  final int nbEvaluationsCreees;
+
+  /// Notes enregistrées (nouvelles et remplacées).
+  final int nbNotes;
+
+  /// Parmi elles, notes qui en ont remplacé une autre.
+  final int nbNotesRemplacees;
 }

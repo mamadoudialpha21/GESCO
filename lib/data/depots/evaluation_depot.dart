@@ -61,8 +61,8 @@ class EvaluationDepot {
         ),
       );
 
-  static const int longueurMaxTitre = 80;
-  static const int coefficientMax = 9999;
+  static const int longueurMaxTitre = longueurMaxTitreEvaluation;
+  static const int coefficientMax = coefficientMaxEvaluation;
 
   static Evaluation _depuis(Map<String, Object?> l) => Evaluation(
         id: l['id'] as int,

@@ -47,6 +47,15 @@ class TableLue {
 
   int get nbColonnes => entetes.length;
 
+  /// Titre de la colonne [colonne] sur une seule ligne (« Devoir 1 (sur 20) ») ;
+  /// « Colonne C » si la cellule d'en-tête est vide.
+  String titreColonne(int colonne) {
+    final t = colonne >= 0 && colonne < entetes.length
+        ? entetes[colonne].replaceAll(RegExp(r'\s+'), ' ').trim()
+        : '';
+    return t.isEmpty ? 'Colonne ${lettre(colonne)}' : t;
+  }
+
   /// Lettre Excel d'une colonne : 0 -> A, 25 -> Z, 26 -> AA.
   static String lettre(int colonne) {
     var n = colonne;
