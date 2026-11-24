@@ -9,12 +9,13 @@ import '../commun/chargeur.dart';
 import '../commun/composants.dart';
 import 'donnees_excel.dart';
 import 'vue_exports.dart';
+import 'vue_import_eleves.dart';
 import 'vue_listes_vierges.dart';
 
-enum _Vue { exporter, listes }
+enum _Vue { exporter, listes, importEleves }
 
-/// Fichiers Excel : exports des données et listes de notes vierges pour les
-/// enseignants. (Les imports s'ajoutent ici : élèves, puis notes.)
+/// Fichiers Excel : exports des données, listes de notes vierges pour les
+/// enseignants et import des élèves. (L'import des notes s'ajoutera ici.)
 class PageExcel extends StatefulWidget {
   const PageExcel({
     super.key,
@@ -23,6 +24,7 @@ class PageExcel extends StatefulWidget {
     this.ouvreur = ouvrirFichier,
     this.dossier,
     this.maintenant,
+    this.selecteur = choisirFichierExcel,
   });
 
   final EtatApp etat;
@@ -36,6 +38,9 @@ class PageExcel extends StatefulWidget {
 
   /// Horloge (remplaçable dans les tests).
   final DateTime Function()? maintenant;
+
+  /// Choix d'un fichier Excel à importer (remplaçable dans les tests).
+  final SelecteurFichier selecteur;
 
   @override
   State<PageExcel> createState() => _PageExcelState();
@@ -96,8 +101,8 @@ class _PageExcelState extends State<PageExcel> {
       children: [
         TitreSection(
           'Fichiers Excel',
-          sousTitre: 'Année ${annee.libelle} · exporter les données et préparer les '
-              'listes de notes des enseignants.',
+          sousTitre: 'Année ${annee.libelle} · exporter les données, préparer les '
+              'listes de notes des enseignants et importer des élèves.',
         ),
         const SizedBox(height: 16),
         Align(
@@ -113,6 +118,10 @@ class _PageExcelState extends State<PageExcel> {
                 value: _Vue.listes,
                 label: Text('Listes pour les enseignants', key: Key('excel_vue_listes')),
               ),
+              ButtonSegment(
+                value: _Vue.importEleves,
+                label: Text('Importer des élèves', key: Key('excel_vue_import_eleves')),
+              ),
             ],
             selected: {_vue},
             onSelectionChanged: (s) => setState(() => _vue = s.first),
@@ -123,21 +132,30 @@ class _PageExcelState extends State<PageExcel> {
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),
-            child: _vue == _Vue.exporter
-                ? VueExports(
-                    etat: widget.etat,
-                    donnees: d,
-                    ouvreur: widget.ouvreur,
-                    dossier: widget.dossier,
-                    maintenant: widget.maintenant,
-                  )
-                : VueListesVierges(
-                    etat: widget.etat,
-                    donnees: d,
-                    ouvreur: widget.ouvreur,
-                    dossier: widget.dossier,
-                    maintenant: widget.maintenant,
-                  ),
+            child: switch (_vue) {
+              _Vue.exporter => VueExports(
+                  etat: widget.etat,
+                  donnees: d,
+                  ouvreur: widget.ouvreur,
+                  dossier: widget.dossier,
+                  maintenant: widget.maintenant,
+                ),
+              _Vue.listes => VueListesVierges(
+                  etat: widget.etat,
+                  donnees: d,
+                  ouvreur: widget.ouvreur,
+                  dossier: widget.dossier,
+                  maintenant: widget.maintenant,
+                ),
+              _Vue.importEleves => VueImportEleves(
+                  etat: widget.etat,
+                  donnees: d,
+                  ouvreur: widget.ouvreur,
+                  dossier: widget.dossier,
+                  maintenant: widget.maintenant,
+                  selecteur: widget.selecteur,
+                ),
+            },
           ),
         ),
       ],
