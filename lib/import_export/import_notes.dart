@@ -1274,6 +1274,15 @@ const Set<String> _motsIgnores = {
   'tel',
 };
 
+/// Titres de colonnes qui servent à repérer la ligne d'en-tête d'un fichier
+/// de notes (matricule, nom, prénom).
+const Set<String> titresConnusNotes = {
+  ..._titresMatricule,
+  ..._titresNomComplet,
+  ..._titresNom,
+  ..._titresPrenom,
+};
+
 bool _ressembleAUneNote(Cellule c) {
   if (c.date != null || c.formule) return false;
   if (c.nombre != null) return c.nombre! >= 0;
