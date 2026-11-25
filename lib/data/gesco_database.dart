@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'schema.dart';
@@ -17,6 +20,9 @@ class GescoDatabase {
   /// Version courante du schéma. À incrémenter à chaque changement, avec
   /// l'ajout de la migration correspondante dans [migrations].
   static const int versionSchema = 4;
+
+  /// Début du nom des copies faites avant une mise à jour de la base.
+  static const String prefixeAvantMiseAJour = 'avant-mise-a-jour_';
 
   /// Migrations : version cible -> étapes à appliquer pour l'atteindre.
   /// Une base neuve est créée en version 1 puis passe par les mêmes
@@ -43,6 +49,9 @@ class GescoDatabase {
     required DatabaseFactory fabrique,
     required String chemin,
   }) async {
+    if (chemin != inMemoryDatabasePath) {
+      await _copierAvantMigration(fabrique, chemin);
+    }
     final db = await fabrique.openDatabase(
       chemin,
       options: OpenDatabaseOptions(
@@ -54,6 +63,43 @@ class GescoDatabase {
       ),
     );
     return GescoDatabase._(db);
+  }
+
+  /// Avant d'ouvrir une base d'une version plus ancienne (donc de la mettre à
+  /// jour), copie le fichier tel quel dans le dossier `sauvegardes` : si la
+  /// mise à jour se passait mal, les données d'avant restent intactes.
+  /// Retourne le chemin de la copie, ou null s'il n'y avait rien à copier.
+  static Future<String?> _copierAvantMigration(
+    DatabaseFactory fabrique,
+    String chemin,
+  ) async {
+    try {
+      final fichier = File(chemin);
+      if (!await fichier.exists() || await fichier.length() == 0) return null;
+      final lecture = await fabrique.openDatabase(
+        chemin,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      final int version;
+      try {
+        version = await lecture.getVersion();
+      } finally {
+        await lecture.close();
+      }
+      if (version <= 0 || version >= versionSchema) return null;
+      final dossier = Directory(p.join(p.dirname(chemin), 'sauvegardes'));
+      await dossier.create(recursive: true);
+      String d2(int n) => n.toString().padLeft(2, '0');
+      final d = DateTime.now();
+      final nom = '${prefixeAvantMiseAJour}v$version-vers-v$versionSchema'
+          '_${d.year}-${d2(d.month)}-${d2(d.day)}_${d2(d.hour)}${d2(d.minute)}${d2(d.second)}.db';
+      final copie = File(p.join(dossier.path, nom));
+      await fichier.copy(copie.path);
+      return copie.path;
+    } on Object {
+      // La copie de précaution ne doit jamais empêcher d'ouvrir la base.
+      return null;
+    }
   }
 
   static Future<void> _configurer(Database db) async {

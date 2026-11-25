@@ -21,6 +21,10 @@ class CleParametre {
   static const styleDocuments = 'documents.style';
   static const bulletinsAuto = 'documents.bulletins_auto';
   static const appreciationsAuto = 'documents.appreciations_auto';
+  static const sauvegardeAuto = 'sauvegarde.auto';
+  static const sauvegardeHeure = 'sauvegarde.heure';
+  static const sauvegardeConserver = 'sauvegarde.conserver';
+  static const sauvegardeDossierExterne = 'sauvegarde.dossier_externe';
 }
 
 /// Paramètres du logiciel enregistrés sous forme clé / valeur.
