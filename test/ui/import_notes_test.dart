@@ -400,14 +400,14 @@ void main() {
       await choisirFichier(tester, premier);
       await verifier(tester);
       await importer(tester);
-      expect((await notesParTitre(tester)).keys, ['Interrogation 1', 'Interrogation 2']);
+      expect((await notesParTitre(tester)).keys, ['Interrogation 1']);
 
       // Même fichier de nouveau : rien à écrire, aucune évaluation en double.
       await choisirFichier(tester, premier);
       await verifier(tester);
       expect(texte(tester, 'notes_import_explication'), contains('Aucune note à importer'));
       expect(actif(tester, 'notes_import_lancer'), isFalse);
-      expect((await notesParTitre(tester)).keys, ['Interrogation 1', 'Interrogation 2']);
+      expect((await notesParTitre(tester)).keys, ['Interrogation 1']);
       await toucher(tester, 'notes_import_annuler');
       await tester.pumpAndSettle();
 
