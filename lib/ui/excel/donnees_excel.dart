@@ -12,6 +12,7 @@ class DonneesExcel {
     this.enseignants = const [],
     this.periodes = const [],
     this.etendues = const [],
+    this.periodesClasse = const {},
   });
 
   final List<ClasseResume> classes;
@@ -27,6 +28,10 @@ class DonneesExcel {
 
   /// Périodes, année entière, séquences puis mois : toutes les étendues.
   final List<(String, String)> etendues;
+
+  /// Périodes (avec leurs mois) du calendrier de chaque classe : celles qui
+  /// servent à l'import des notes.
+  final Map<int, List<PeriodeScolaire>> periodesClasse;
 
   static Future<DonneesExcel> charger(EtatApp etat) async {
     final anneeId = etat.anneeId;
@@ -53,6 +58,9 @@ class DonneesExcel {
     final listePeriodes = [for (final e in periodes.entries) (e.key, e.value)];
     final enseignants = await s.enseignants.lister(anneeId: anneeId);
     return DonneesExcel(
+      periodesClasse: {
+        for (final c in classes) c.classe.id: calendriers.pour(c.classe.cycle).periodes,
+      },
       classes: classes,
       matieres: {for (final c in classes) c.classe.id: await s.matieres.lister(c.classe.id)},
       enseignants: [

@@ -10,12 +10,13 @@ import '../commun/composants.dart';
 import 'donnees_excel.dart';
 import 'vue_exports.dart';
 import 'vue_import_eleves.dart';
+import 'vue_import_notes.dart';
 import 'vue_listes_vierges.dart';
 
-enum _Vue { exporter, listes, importEleves }
+enum _Vue { exporter, listes, importEleves, importNotes }
 
 /// Fichiers Excel : exports des données, listes de notes vierges pour les
-/// enseignants et import des élèves. (L'import des notes s'ajoutera ici.)
+/// enseignants, import des élèves et import des notes.
 class PageExcel extends StatefulWidget {
   const PageExcel({
     super.key,
@@ -102,7 +103,7 @@ class _PageExcelState extends State<PageExcel> {
         TitreSection(
           'Fichiers Excel',
           sousTitre: 'Année ${annee.libelle} · exporter les données, préparer les '
-              'listes de notes des enseignants et importer des élèves.',
+              'listes de notes des enseignants, importer des élèves et des notes.',
         ),
         const SizedBox(height: 16),
         Align(
@@ -121,6 +122,10 @@ class _PageExcelState extends State<PageExcel> {
               ButtonSegment(
                 value: _Vue.importEleves,
                 label: Text('Importer des élèves', key: Key('excel_vue_import_eleves')),
+              ),
+              ButtonSegment(
+                value: _Vue.importNotes,
+                label: Text('Importer des notes', key: Key('excel_vue_import_notes')),
               ),
             ],
             selected: {_vue},
@@ -148,6 +153,14 @@ class _PageExcelState extends State<PageExcel> {
                   maintenant: widget.maintenant,
                 ),
               _Vue.importEleves => VueImportEleves(
+                  etat: widget.etat,
+                  donnees: d,
+                  ouvreur: widget.ouvreur,
+                  dossier: widget.dossier,
+                  maintenant: widget.maintenant,
+                  selecteur: widget.selecteur,
+                ),
+              _Vue.importNotes => VueImportNotes(
                   etat: widget.etat,
                   donnees: d,
                   ouvreur: widget.ouvreur,
