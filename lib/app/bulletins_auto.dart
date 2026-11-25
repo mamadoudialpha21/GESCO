@@ -374,12 +374,19 @@ class BulletinsAuto extends ChangeNotifier {
 
   static String _texteErreur(Object e) => e is ErreurGesco ? e.message : '$e';
 
-  /// Arrête l'écoute (fermeture de l'application, tests).
-  @override
-  void dispose() {
+  /// Arrête l'écoute sans libérer l'objet (avant de fermer la base, par
+  /// exemple pendant une restauration).
+  void arreter() {
     _fermee = true;
     _minuterie?.cancel();
     _abonnement?.cancel();
+    _abonnement = null;
+  }
+
+  /// Arrête l'écoute (fermeture de l'application, tests).
+  @override
+  void dispose() {
+    arreter();
     super.dispose();
   }
 }

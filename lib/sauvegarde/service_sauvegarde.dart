@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -229,6 +230,18 @@ class ServiceSauvegarde {
 
   Database get _db => services.gdb.db;
 
+  /// Les opérations qui écrivent ou remplacent des fichiers de sauvegarde se
+  /// font l'une après l'autre : une sauvegarde automatique qui tombe pendant
+  /// une sauvegarde manuelle (ou une restauration) attend son tour.
+  Future<void> _verrou = Future<void>.value();
+
+  Future<T> _exclusif<T>(Future<T> Function() action) {
+    final precedent = _verrou;
+    final fin = Completer<void>();
+    _verrou = fin.future;
+    return precedent.then((_) => action()).whenComplete(() => fin.complete());
+  }
+
   static const List<String> _tablesObligatoires = [
     'etablissement',
     'annee_scolaire',
@@ -310,12 +323,17 @@ class ServiceSauvegarde {
   /// disque externe...) ou, à défaut, dans le dossier de GESCO.
   Future<ResultatSauvegarde> creerManuelle({Directory? destination}) {
     services.controle.exiger(Permission.sauvegardeGerer, 'créer une sauvegarde');
-    return _creer(TypeSauvegarde.manuelle, destination: destination, utilisateur: _nomUtilisateur);
+    final utilisateur = _nomUtilisateur;
+    return _exclusif(
+      () => _creer(TypeSauvegarde.manuelle, destination: destination, utilisateur: utilisateur),
+    );
   }
 
   /// Sauvegarde automatique : action du système, sans compte connecté. Copiée
   /// aussi dans le dossier externe des réglages, s'il y en a un.
-  Future<ResultatSauvegarde> creerAutomatique() async {
+  Future<ResultatSauvegarde> creerAutomatique() => _exclusif(_creerAutomatique);
+
+  Future<ResultatSauvegarde> _creerAutomatique() async {
     final c = await config();
     final r = await _creer(TypeSauvegarde.automatique, utilisateur: 'Système');
     await _rotationInterne(c.conserver);
@@ -791,6 +809,19 @@ class ServiceSauvegarde {
   /// Une [ErreurGesco] est levée, sans que rien ne soit modifié, si le fichier
   /// est refusé ou si la sauvegarde de sécurité échoue.
   Future<ResultatRestauration> restaurer(
+    String chemin, {
+    required Future<void> Function() fermerBase,
+    required Future<GescoDatabase> Function() ouvrirBase,
+    void Function(EtapeRestauration etape)? progression,
+  }) =>
+      _exclusif(() => _restaurer(
+            chemin,
+            fermerBase: fermerBase,
+            ouvrirBase: ouvrirBase,
+            progression: progression,
+          ));
+
+  Future<ResultatRestauration> _restaurer(
     String chemin, {
     required Future<void> Function() fermerBase,
     required Future<GescoDatabase> Function() ouvrirBase,

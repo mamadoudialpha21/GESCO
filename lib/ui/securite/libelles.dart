@@ -18,6 +18,7 @@ String libelleAction(String action) => switch (action) {
       'inscription' => 'Inscription',
       'reinscription' => 'Réinscription',
       'copie' => 'Copie',
+      'restauration' => 'Restauration',
       'reinitialisation' => 'Réinitialisation',
       'reinitialisation_mdp' => 'Mot de passe réinitialisé',
       _ => action,

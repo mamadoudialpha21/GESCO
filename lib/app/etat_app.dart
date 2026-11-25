@@ -2,8 +2,11 @@ import 'package:flutter/foundation.dart';
 
 import '../data/modeles_donnees.dart';
 import '../domain/permissions.dart';
+import '../sauvegarde/service_sauvegarde.dart';
 import 'acces.dart';
 import 'bulletins_auto.dart';
+import 'gestion_base.dart';
+import 'planificateur_sauvegarde.dart';
 import 'services.dart';
 
 /// État partagé de l'application : année sélectionnée, fiche de
@@ -15,6 +18,9 @@ class EtatApp extends ChangeNotifier {
     required this.chemin,
     this.problemesIntegrite = const [],
     this.bulletinsAuto,
+    this.sauvegarde,
+    this.planificateurSauvegarde,
+    this.gestionBase,
   }) : acces = Acces(services);
 
   final Services services;
@@ -35,6 +41,16 @@ class EtatApp extends ChangeNotifier {
   /// Génération automatique des bulletins individuels (absente dans les
   /// tests qui n'en ont pas besoin).
   final BulletinsAuto? bulletinsAuto;
+
+  /// Sauvegardes de la base (absentes dans les tests qui n'en ont pas besoin).
+  final ServiceSauvegarde? sauvegarde;
+
+  /// Sauvegarde automatique quotidienne.
+  final PlanificateurSauvegarde? planificateurSauvegarde;
+
+  /// Restauration d'une sauvegarde et redémarrage de l'application sur la
+  /// base restaurée (fournie par l'application ; absente dans les tests).
+  final GestionBase? gestionBase;
 
   List<AnneeScolaire> annees = const [];
   int? anneeId;

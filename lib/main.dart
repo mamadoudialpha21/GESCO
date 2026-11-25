@@ -4,10 +4,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'app/bulletins_auto.dart';
 import 'app/etat_app.dart';
-import 'app/services.dart';
-import 'app/session.dart';
+import 'app/gestion_base_app.dart';
 import 'data/emplacements.dart';
-import 'data/gesco_database.dart';
 import 'documents/ouvrir_document.dart';
 import 'documents/polices_pdf.dart';
 import 'ui/acces/porte_acces.dart';
@@ -20,30 +18,39 @@ Future<void> main() async {
     // Windows, macOS, Linux : SQLite embarqué via FFI. Aucun accès réseau.
     sqfliteFfiInit();
     final chemin = await cheminBaseParDefaut();
-    final gdb = await GescoDatabase.ouvrir(
+    // La base, la session, les bulletins automatiques et la sauvegarde
+    // automatique quotidienne sont rassemblés dans `GestionBaseApp` : après la
+    // restauration d'une sauvegarde, tout est reconstruit sur la base restaurée.
+    final gestion = await GestionBaseApp.demarrer(
       fabrique: databaseFactoryFfi,
       chemin: chemin,
+      // Bulletins individuels régénérés à chaque saisie de notes (réglage
+      // « Bulletins automatiques », activé par défaut).
+      creerBulletinsAuto: (services) => BulletinsAuto(
+        services: services,
+        dossierRacine: dossierDocuments,
+        chargerPolices: PolicesPdf.charger,
+      )..demarrer(),
     );
-    final problemes = await gdb.verifierIntegrite();
-    final services = Services(gdb, session: Session());
-    // Bulletins individuels régénérés à chaque saisie de notes (réglage
-    // « Bulletins automatiques », activé par défaut).
-    final bulletinsAuto = BulletinsAuto(
-      services: services,
-      dossierRacine: dossierDocuments,
-      chargerPolices: PolicesPdf.charger,
-    )..demarrer();
-    final etat = EtatApp(
-      services,
-      chemin: chemin,
-      problemesIntegrite: problemes,
-      bulletinsAuto: bulletinsAuto,
-    );
-    await etat.charger();
-    await etat.acces.charger();
-    runApp(GescoApp(etat: etat));
+    runApp(GescoHote(gestion: gestion));
   } catch (erreur) {
     runApp(EcranErreurDemarrage(message: erreur.toString()));
+  }
+}
+
+/// Affiche l'application et la reconstruit entièrement quand l'état change
+/// (après la restauration d'une sauvegarde).
+class GescoHote extends StatelessWidget {
+  const GescoHote({super.key, required this.gestion});
+
+  final GestionBaseApp gestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<EtatApp>(
+      valueListenable: gestion.etat,
+      builder: (context, etat, _) => GescoApp(key: ObjectKey(etat), etat: etat),
+    );
   }
 }
 

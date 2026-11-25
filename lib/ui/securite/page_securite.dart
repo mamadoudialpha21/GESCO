@@ -4,10 +4,11 @@ import '../../app/etat_app.dart';
 import '../../domain/permissions.dart';
 import 'onglet_comptes.dart';
 import 'onglet_mon_compte.dart';
+import 'onglet_sauvegardes.dart';
 import 'onglets_journaux.dart';
 
-/// Sécurité : comptes et permissions, journaux, historique des notes et
-/// compte de la personne connectée. Chaque onglet n'apparaît que si le
+/// Sécurité : comptes et permissions, sauvegardes, journaux, historique des
+/// notes et compte de la personne connectée. Chaque onglet n'apparaît que si le
 /// compte a la permission correspondante.
 class PageSecurite extends StatelessWidget {
   const PageSecurite({super.key, required this.etat});
@@ -21,6 +22,11 @@ class PageSecurite extends StatelessWidget {
         (
           const Tab(text: 'Comptes', icon: Icon(Icons.groups_outlined)),
           OngletComptes(etat: etat),
+        ),
+      if (etat.peut(Permission.sauvegardeGerer) && etat.sauvegarde != null)
+        (
+          const Tab(text: 'Sauvegardes', icon: Icon(Icons.backup_outlined)),
+          OngletSauvegardes(etat: etat),
         ),
       if (etat.peut(Permission.journalVoir)) ...[
         (
