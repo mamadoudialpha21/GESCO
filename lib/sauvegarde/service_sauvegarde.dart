@@ -437,7 +437,7 @@ class ServiceSauvegarde {
       );
     }
     final instant = _maintenant();
-    final copie = File(p.join(interne.path, '.copie_${instant.microsecondsSinceEpoch}.db'));
+    final copie = File(p.join(interne.path, '.copie_${instant.microsecondsSinceEpoch}_$pid.db'));
     try {
       // VACUUM INTO produit une copie cohérente de la base, même si elle est
       // en cours d'utilisation, sans la fermer.
@@ -658,19 +658,26 @@ class ServiceSauvegarde {
         '${GescoDatabase.versionSchema}). Installez la dernière version de GESCO.',
       );
     }
-    final temporaire = File(p.join(
-      Directory.systemTemp.path,
-      'gesco_verif_${_maintenant().microsecondsSinceEpoch}.db',
-    ));
+    // Dossier temporaire à nom unique : deux contrôles en même temps (ou deux
+    // programmes) ne se partagent jamais le même fichier.
     ResumeBase? resume;
+    Directory? dossierTemp;
     try {
+      dossierTemp = await Directory.systemTemp.createTemp('gesco_verif_');
+      final temporaire = File(p.join(dossierTemp.path, 'verification.db'));
       await temporaire.writeAsBytes(archive.base, flush: true);
       resume = await _resumerFichier(temporaire.path);
       problemes.addAll(resume.problemes);
     } on FileSystemException catch (e) {
       problemes.add('Contrôle impossible : ${e.osError?.message ?? e.message}');
     } finally {
-      await _supprimerSiExiste(temporaire);
+      if (dossierTemp != null) {
+        try {
+          await dossierTemp.delete(recursive: true);
+        } on FileSystemException {
+          // Fichier encore ouvert : le système le nettoiera.
+        }
+      }
     }
     return ResultatVerification(
       chemin: chemin,

@@ -48,6 +48,10 @@ Utilisateur agent(Set<Permission> droits) => Utilisateur(
       permissionsPersonnalisees: droits,
     );
 
+/// Un test qui reste bloqué échoue au bout de deux minutes (et non dix).
+void testSauv(String nom, Future<void> Function(WidgetTester) corps) =>
+    testWidgets(nom, corps, timeout: const Timeout(Duration(minutes: 2)));
+
 void main() {
   sqfliteFfiInit();
 
@@ -211,7 +215,7 @@ void main() {
     return copie;
   }
 
-  testWidgets('réglages par défaut, aucune sauvegarde, rien à enregistrer', (tester) async {
+  testSauv('réglages par défaut, aucune sauvegarde, rien à enregistrer', (tester) async {
     await preparer(tester);
     await afficher(tester);
     await attendre(tester, find.byKey(const Key('sauv_auto')));
@@ -227,7 +231,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('sauvegarde manuelle : créée, contrôlée, affichée dans l\'historique', (tester) async {
+  testSauv('sauvegarde manuelle : créée, contrôlée, affichée dans l\'historique', (tester) async {
     await preparer(tester);
     await afficher(tester);
     await attendre(tester, find.byKey(const Key('sauv_auto')));
@@ -245,7 +249,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('sauvegarde sur une clé USB : le fichier est écrit dans le dossier choisi', (tester) async {
+  testSauv('sauvegarde sur une clé USB : le fichier est écrit dans le dossier choisi', (tester) async {
     await preparer(tester);
     final usb = p.join(tmp.path, 'usb');
     dossierChoisi = usb;
@@ -268,7 +272,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('réglages : modifiés, enregistrés, relus ; auto désactivée grise l\'heure', (tester) async {
+  testSauv('réglages : modifiés, enregistrés, relus ; auto désactivée grise l\'heure', (tester) async {
     await preparer(tester);
     await afficher(tester);
     await attendre(tester, find.byKey(const Key('sauv_auto')));
@@ -314,7 +318,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('contrôle d\'une sauvegarde : valide, puis abîmée', (tester) async {
+  testSauv('contrôle d\'une sauvegarde : valide, puis abîmée', (tester) async {
     await preparer(tester);
     late Sauvegarde s;
     await tester.runAsync(() async => s = (await service.creerManuelle()).sauvegarde);
@@ -343,7 +347,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('suppression : confirmation puis fichier et ligne supprimés', (tester) async {
+  testSauv('suppression : confirmation puis fichier et ligne supprimés', (tester) async {
     await preparer(tester);
     late Sauvegarde s;
     await tester.runAsync(() async => s = (await service.creerManuelle()).sauvegarde);
@@ -366,7 +370,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('fichier de l\'historique introuvable (clé retirée) : signalé, sans restauration possible',
+  testSauv('fichier de l\'historique introuvable (clé retirée) : signalé, sans restauration possible',
       (tester) async {
     await preparer(tester);
     final usb = Directory(p.join(tmp.path, 'usb'));
@@ -381,7 +385,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('restauration : aperçu, confirmation obligatoire, remplacement, redémarrage', (tester) async {
+  testSauv('restauration : aperçu, confirmation obligatoire, remplacement, redémarrage', (tester) async {
     await preparer(tester);
     await tester.runAsync(() async {
       await service.creerManuelle(); // 2 élèves
@@ -432,7 +436,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('restauration : annuler ne change rien', (tester) async {
+  testSauv('restauration : annuler ne change rien', (tester) async {
     await preparer(tester);
     await tester.runAsync(() async {
       await service.creerManuelle();
@@ -450,7 +454,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('restauration d\'un fichier abîmé : refusée, données intactes, aucun bouton Restaurer',
+  testSauv('restauration d\'un fichier abîmé : refusée, données intactes, aucun bouton Restaurer',
       (tester) async {
     await preparer(tester);
     late Sauvegarde s;
@@ -480,7 +484,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('restauration d\'un fichier qui n\'est pas une sauvegarde : refusée avec explication',
+  testSauv('restauration d\'un fichier qui n\'est pas une sauvegarde : refusée avec explication',
       (tester) async {
     await preparer(tester);
     final texteSeul = File(p.join(tmp.path, 'liste.zip'))
@@ -497,7 +501,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('sans le droit de restaurer : sauvegarder oui, restaurer non', (tester) async {
+  testSauv('sans le droit de restaurer : sauvegarder oui, restaurer non', (tester) async {
     final session = Session()..ouvrir(agent({Permission.sauvegardeGerer}));
     await preparer(tester, session: session);
     await tester.runAsync(() => service.creerManuelle());
@@ -512,14 +516,26 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('échec de la sauvegarde automatique : l\'erreur est affichée, jamais silencieuse',
+  testSauv('échec de la sauvegarde automatique : l\'erreur est affichée, jamais silencieuse',
       (tester) async {
+    // ignore: avoid_print
+    print('[échec auto] préparation');
     await preparer(tester, dossierBloque: true, avecPlanificateur: true);
-    planificateur!.demarrer();
-    await tester.runAsync(() => planificateur!.verifier());
+    // ignore: avoid_print
+    print('[échec auto] vérification du planificateur');
+    // Démarré dans la vraie zone asynchrone : les minuteries du planificateur
+    // ne sont pas des minuteries simulées du test.
+    await tester.runAsync(() async {
+      planificateur!.demarrer();
+      await planificateur!.verifier();
+    });
+    // ignore: avoid_print
+    print('[échec auto] erreur = ${planificateur!.derniereErreur}');
     expect(planificateur!.derniereErreur, contains('n\'est pas accessible'));
 
     await afficher(tester);
+    // ignore: avoid_print
+    print('[échec auto] affichage');
     await attendre(tester, find.byKey(const Key('sauv_erreur_auto')));
     expect(
       texteSelectionnable(tester, 'sauv_erreur_auto'),
@@ -528,7 +544,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('la page Sécurité n\'a l\'onglet Sauvegardes qu\'avec le droit', (tester) async {
+  testSauv('la page Sécurité n\'a l\'onglet Sauvegardes qu\'avec le droit', (tester) async {
     final session = Session()..ouvrir(agent({Permission.sauvegardeGerer}));
     await preparer(tester, session: session);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: PageSecurite(etat: etat))));
@@ -546,7 +562,7 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('quitter GESCO est proposé si la base ne peut pas être rouverte', (tester) async {
+  testSauv('quitter GESCO est proposé si la base ne peut pas être rouverte', (tester) async {
     await preparer(tester);
     await tester.runAsync(() => service.creerManuelle());
     // La réouverture échoue deux fois (restauration, puis retour arrière).
