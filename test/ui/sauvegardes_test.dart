@@ -7,6 +7,7 @@ import 'package:gesco/app/gestion_base.dart';
 import 'package:gesco/app/planificateur_sauvegarde.dart';
 import 'package:gesco/app/services.dart';
 import 'package:gesco/app/session.dart';
+import 'package:gesco/data/erreurs.dart';
 import 'package:gesco/data/gesco_database.dart';
 import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/data/modeles_securite.dart';
@@ -51,6 +52,18 @@ Utilisateur agent(Set<Permission> droits) => Utilisateur(
 /// Un test qui reste bloqué échoue au bout de deux minutes (et non dix).
 void testSauv(String nom, Future<void> Function(WidgetTester) corps) =>
     testWidgets(nom, corps, timeout: const Timeout(Duration(minutes: 2)));
+
+/// Service dont la sauvegarde automatique échoue toujours (dossier inaccessible).
+class ServiceEnEchec extends ServiceSauvegarde {
+  ServiceEnEchec(super.services, {required super.fabrique, required super.cheminBase});
+
+  @override
+  Future<ResultatSauvegarde?> executerSiDue() async {
+    throw const ErreurGesco(
+      'Le dossier des sauvegardes de GESCO (« sauvegardes ») n\'est pas accessible (simulé).',
+    );
+  }
+}
 
 void main() {
   sqfliteFfiInit();
@@ -168,15 +181,6 @@ void main() {
       if (f.evaluate().isNotEmpty) return;
     }
     fail('Élément introuvable : $f');
-  }
-
-  Future<void> attendreAbsent(WidgetTester tester, Finder f, {int essais = 100}) async {
-    for (var i = 0; i < essais; i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-      await tester.pump(const Duration(milliseconds: 100));
-      if (f.evaluate().isEmpty) return;
-    }
-    fail('Élément toujours présent : $f');
   }
 
   Future<void> fin(WidgetTester tester) async {
@@ -518,24 +522,35 @@ void main() {
 
   testSauv('échec de la sauvegarde automatique : l\'erreur est affichée, jamais silencieuse',
       (tester) async {
-    // ignore: avoid_print
-    print('[échec auto] préparation');
-    await preparer(tester, dossierBloque: true, avecPlanificateur: true);
-    // ignore: avoid_print
-    print('[échec auto] vérification du planificateur');
-    // Démarré dans la vraie zone asynchrone : les minuteries du planificateur
-    // ne sont pas des minuteries simulées du test.
-    await tester.runAsync(() async {
-      planificateur!.demarrer();
-      await planificateur!.verifier();
-    });
-    // ignore: avoid_print
-    print('[échec auto] erreur = ${planificateur!.derniereErreur}');
+    // Le comportement du planificateur lui-même (erreur conservée, pause avant
+    // une nouvelle tentative, réussite qui efface l'erreur) est vérifié par
+    // test/app/planificateur_sauvegarde_test.dart sur une vraie base. Ici on
+    // vérifie l'affichage : le service simule l'échec, sans minuterie réelle.
+    await preparer(tester);
+    final enEchec = ServiceEnEchec(
+      services,
+      fabrique: databaseFactoryFfi,
+      cheminBase: cheminBase,
+    );
+    planificateur = PlanificateurSauvegarde(
+      enEchec,
+      delaiDemarrage: const Duration(hours: 1),
+      intervalle: const Duration(hours: 1),
+    );
+    etat = EtatApp(
+      services,
+      chemin: cheminBase,
+      sauvegarde: service,
+      planificateurSauvegarde: planificateur,
+      gestionBase: gestion,
+    );
+    planificateur!.demarrer();
+    final tentative = planificateur!.verifier();
+    await tester.pump();
+    await tentative;
     expect(planificateur!.derniereErreur, contains('n\'est pas accessible'));
 
     await afficher(tester);
-    // ignore: avoid_print
-    print('[échec auto] affichage');
     await attendre(tester, find.byKey(const Key('sauv_erreur_auto')));
     expect(
       texteSelectionnable(tester, 'sauv_erreur_auto'),
