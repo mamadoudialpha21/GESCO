@@ -7,6 +7,7 @@ import '../documents/modele_bulletin.dart';
 import '../domain/arrondi.dart';
 import '../domain/calendrier.dart';
 import '../domain/moteur_resultats.dart';
+import '../domain/periodes.dart';
 import 'appreciations_classe.dart';
 import 'calcul_classe.dart';
 
@@ -87,6 +88,25 @@ List<Bulletin> construireBulletins({
     }
   }
 
+  // Récapitulatif d'un semestre à compositions : la moyenne de chaque mois qui
+  // entre dans son calcul (la composition en fait partie), pour que l'élève et
+  // sa famille puissent vérifier la moyenne du semestre.
+  final periodeChoisie = portee.periodeChoisie;
+  final recapMois = <String, Map<int, ResultatEleve>>{};
+  if (type == TypeBulletin.periodique &&
+      periodeChoisie != null &&
+      periodeChoisie.moisCompo != null) {
+    for (final m in moisScolaires) {
+      if (!periodeChoisie.mois.contains(m)) continue;
+      recapMois[calcul.calendrier.libelleDuMois(m)] = {
+        for (final r in calcul.resultats(Portee.mois(m))) r.inscriptionId: r,
+      };
+    }
+  }
+  final recap = type == TypeBulletin.annuel
+      ? {for (final entree in resultatsPeriodes.entries) entree.key.libelle: entree.value}
+      : recapMois;
+
   final retenus = [
     for (final e in calcul.eleves)
       if (inscriptions != null ? inscriptions.contains(e.inscriptionId) : e.actif) e,
@@ -152,13 +172,14 @@ List<Bulletin> construireBulletins({
           appreciation: _premierNonVide(avis?.appreciation, auto.generales[e.inscriptionId]),
           decisionConseil: avis?.decision ?? '',
           periodes: [
-            for (final entree in resultatsPeriodes.entries)
+            for (final entree in recap.entries)
               ResumePeriode(
-                libelle: entree.key.libelle,
+                libelle: entree.key,
                 moyenne: entree.value[e.inscriptionId]?.moyenne,
                 rang: entree.value[e.inscriptionId]?.rang,
               ),
           ],
+          recapitulatifFinal: type == TypeBulletin.annuel ? 'Année' : periodeLibelle,
           dateEdition: dateEdition,
         );
       }(),

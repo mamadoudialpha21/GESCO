@@ -184,7 +184,7 @@ void main() {
 
     expect(interrupteur(tester), isTrue);
     expect(texteSelectionnable(tester, 'auto_bulletins_dossier'), p.join(racine.path, 'Bulletins'));
-    expect(texte(tester, 'auto_bulletins_texte'), contains('2 trimestres'));
+    expect(texte(tester, 'auto_bulletins_texte'), contains('2 semestres'));
     expect(find.text('Tout générer : Trimestre 1'), findsOneWidget);
     expect(find.byKey(const Key('auto_bulletins_resume')), findsNothing);
     await fin(tester);

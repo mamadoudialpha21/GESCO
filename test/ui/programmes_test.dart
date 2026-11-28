@@ -68,15 +68,6 @@ void main() {
     fail('Élément introuvable : $f');
   }
 
-  Future<void> attendreAbsent(WidgetTester tester, Finder f) async {
-    for (var i = 0; i < 60; i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-      await tester.pump(const Duration(milliseconds: 100));
-      if (f.evaluate().isEmpty) return;
-    }
-    fail('Élément toujours présent : $f');
-  }
-
   Future<void> fin(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(() => gdb.fermer());

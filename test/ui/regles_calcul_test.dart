@@ -66,7 +66,7 @@ void main() {
     expect(actif(tester, 'option_absence_zero'), isFalse);
     expect(actif(tester, 'option_periode_complete'), isFalse);
     expect(find.text('Une absence compte pour zéro'), findsOneWidget);
-    expect(find.text('Exiger les trois mois pour calculer un trimestre'), findsOneWidget);
+    expect(find.text('Exiger tous les mois pour calculer une période'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('option_absence_zero')));
     await tester.pump();

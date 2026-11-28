@@ -167,5 +167,58 @@ void main() {
     expect(primaire.single.niveau, '3ème année');
     expect([for (final p in primaire.single.periodes) p.libelle],
         ['Compo 1 (décembre)', 'Compo 2 (mars)', 'Compo 3 (juin)']);
+    expect(primaire.single.recapitulatifFinal, 'Année');
+  });
+
+  test('bulletin de semestre : les moyennes des mois et la composition sont rappelées',
+      () async {
+    final calcul = (await charger())['8e A']!;
+    final semestre1 = calcul.calendrier.periodes.first;
+    final b = construireBulletins(
+      calcul: calcul,
+      portee: Portee.periode(semestre1),
+      periodeLibelle: semestre1.libelle,
+      type: TypeBulletin.periodique,
+      etablissement: const Etablissement(nom: 'École'),
+      anneeLibelle: '2026-2027',
+    ).single;
+    expect([for (final p in b.periodes) p.libelle],
+        ['Octobre', 'Novembre', 'Décembre', 'Janvier (Compo 1)']);
+    expect([for (final p in b.periodes) p.moyenne], [null, 1200, null, 1600]);
+    expect(b.recapitulatifFinal, 'Semestre 1');
+    // (2 x 16,00 + moyenne des autres mois 12,00) / 3.
+    expect(b.moyenne, 1467);
+    expect(b.titre, 'BULLETIN DU SEMESTRE 1');
+  });
+
+  test('bulletin de composition (primaire) : titre propre, pas de récapitulatif', () async {
+    final calcul = (await charger())['3e A']!;
+    final compo2 = calcul.calendrier.periodes[1];
+    final b = construireBulletins(
+      calcul: calcul,
+      portee: Portee.periode(compo2),
+      periodeLibelle: compo2.libelle,
+      type: TypeBulletin.periodique,
+      etablissement: const Etablissement(nom: 'École'),
+      anneeLibelle: '2026-2027',
+    ).single;
+    expect(b.titre, 'BULLETIN DE LA COMPOSITION 2 (MARS)');
+    expect(b.periodes, isEmpty);
+    expect(b.moyenne, 1600);
+  });
+
+  test('bulletin mensuel d\'une composition du collège', () async {
+    final calcul = (await charger())['8e A']!;
+    final b = construireBulletins(
+      calcul: calcul,
+      portee: const Portee.mois(1),
+      periodeLibelle: calcul.calendrier.libelleDuMois(1),
+      type: TypeBulletin.mensuel,
+      etablissement: const Etablissement(nom: 'École'),
+      anneeLibelle: '2026-2027',
+    ).single;
+    expect(b.titre, 'BULLETIN DU MOIS DE JANVIER (COMPO 1)');
+    expect(b.periodes, isEmpty);
+    expect(b.moyenne, 1600);
   });
 }

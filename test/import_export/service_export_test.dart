@@ -267,7 +267,7 @@ void main() {
             anneeId: annee,
             options: OptionsExport(cle: cle),
           ),
-          erreurContenant('Choisissez un trimestre'),
+          erreurContenant('Choisissez une période'),
         );
       }
     });

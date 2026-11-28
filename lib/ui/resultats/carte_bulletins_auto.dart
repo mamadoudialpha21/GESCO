@@ -137,8 +137,8 @@ class _CarteBulletinsAutoState extends State<CarteBulletinsAuto> {
                 actif
                     ? 'À chaque saisie de notes, d\'évaluation ou de composition, GESCO produit '
                         'le bulletin individuel de chaque élève de la classe concernée : '
-                        'mensuel, puis de trimestre (primaire : 3 trimestres ; collège et lycée : '
-                        '2 trimestres), puis annuel après le dernier trimestre. '
+                        'mensuel, puis de période (maternelle et primaire : 3 compositions ; '
+                        'collège et lycée : 2 semestres), puis annuel après la dernière période. '
                         'Les fichiers précédents sont remplacés par la version à jour.'
                     : 'Génération automatique désactivée : les bulletins ne sont produits que '
                         'par les boutons ci-dessous.',

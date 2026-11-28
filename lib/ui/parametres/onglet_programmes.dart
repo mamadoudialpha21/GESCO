@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/etat_app.dart';
+import '../../data/depots/aides.dart' show pluriel;
 import '../../data/depots/programme_depot.dart';
 import '../../data/modeles_donnees.dart';
 import '../../domain/arrondi.dart';

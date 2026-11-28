@@ -253,11 +253,11 @@ class _EditeurResultatsState extends State<_EditeurResultats> {
                       contentPadding: EdgeInsets.zero,
                       value: _periodeComplete,
                       onChanged: (v) => setState(() => _periodeComplete = v),
-                      title: const Text('Exiger les trois mois pour calculer un trimestre'),
+                      title: const Text('Exiger tous les mois pour calculer une période'),
                       subtitle: const Text(
-                        'Activé : pas de moyenne trimestrielle tant qu\'un mois '
-                        'n\'a pas de moyenne, ni de moyenne annuelle tant qu\'un '
-                        'trimestre n\'en a pas.',
+                        'Activé : pas de moyenne de période (trimestre, semestre ou '
+                        'composition) tant qu\'un de ses mois n\'a pas de moyenne, ni de '
+                        'moyenne annuelle tant qu\'une période n\'en a pas.',
                       ),
                     ),
                   ],

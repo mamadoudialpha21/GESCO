@@ -353,7 +353,7 @@ class _PageBulletin {
   // ------------------------------------------- Récapitulatif (bulletin annuel)
 
   pw.Widget _recapitulatifPeriodes() {
-    final titres = ['', for (final p in b.periodes) p.libelle, 'Année'];
+    final titres = ['', for (final p in b.periodes) p.libelle, b.recapitulatifFinal];
     final moyennes = [
       'Moyenne',
       for (final p in b.periodes) formaterCentiemes(p.moyenne),

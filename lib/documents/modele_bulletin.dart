@@ -108,6 +108,7 @@ class Bulletin {
     this.appreciation = '',
     this.decisionConseil = '',
     this.periodes = const [],
+    this.recapitulatifFinal = 'Année',
     this.dateEdition,
   });
 
@@ -171,8 +172,14 @@ class Bulletin {
   final String appreciation;
   final String decisionConseil;
 
-  /// Récapitulatif par période (bulletin annuel).
+  /// Récapitulatif imprimé sous la synthèse : les périodes de l'année
+  /// (bulletin annuel) ou les mois qui composent un semestre à compositions
+  /// (bulletin de semestre), suivis d'une dernière colonne.
   final List<ResumePeriode> periodes;
+
+  /// Titre de la dernière colonne du récapitulatif : « Année » pour le
+  /// bulletin annuel, « Semestre 1 »... pour un bulletin de semestre.
+  final String recapitulatifFinal;
 
   /// Date d'édition imprimée en pied de page ; l'heure du jour si null.
   final DateTime? dateEdition;
@@ -191,11 +198,19 @@ class Bulletin {
     return date.isEmpty ? '$verbe$lieu' : '$verbe le $date$lieu';
   }
 
+  /// « Bulletin du semestre 1 », « Bulletin de la composition 1 (décembre) ».
+  static String _titrePeriode(String libelle) {
+    final l = libelle.toLowerCase();
+    if (l.startsWith('composition')) return 'Bulletin de la $l';
+    if (l.startsWith('compo')) return 'Bulletin de la composition${l.substring(5)}';
+    return 'Bulletin du $l';
+  }
+
   /// Titre imprimé : « BULLETIN DU TRIMESTRE 1 », « BULLETIN DU MOIS DE NOVEMBRE »...
   String get titre {
     final texte = switch (type) {
       TypeBulletin.mensuel => 'Bulletin du mois de ${periodeLibelle.toLowerCase()}',
-      TypeBulletin.periodique => 'Bulletin du ${periodeLibelle.toLowerCase()}',
+      TypeBulletin.periodique => _titrePeriode(periodeLibelle),
       TypeBulletin.annuel => 'Bulletin annuel',
     };
     return texte.toUpperCase();

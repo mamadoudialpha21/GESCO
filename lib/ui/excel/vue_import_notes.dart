@@ -243,7 +243,7 @@ class _VueImportNotesState extends State<VueImportNotes> {
     final matiere = _matiere;
     final periode = _periode;
     if (anneeId == null || classe == null || matiere == null || periode == null) {
-      throw const ErreurGesco('Choisissez la classe, la matière et le trimestre.');
+      throw const ErreurGesco('Choisissez la classe, la matière et la période.');
     }
     return _service.contexte(
       anneeId: anneeId,
@@ -549,7 +549,7 @@ class _VueImportNotesState extends State<VueImportNotes> {
           width: 230,
           child: ChoixListe<String?>(
             cleChamp: const Key('notes_import_periode'),
-            libelle: 'Trimestre',
+            libelle: 'Période',
             valeur: _periode?.cle,
             options: [
               if (_periode == null) (null, 'Choisir la période'),
@@ -885,7 +885,7 @@ class _VueImportNotesState extends State<VueImportNotes> {
     final mois = _periode?.mois ?? const <int>[];
     return [
       for (final m in mois) (m, libelleMois(m)),
-      if (!mois.contains(courant)) (courant, '${libelleMois(courant)} (hors du trimestre)'),
+      if (!mois.contains(courant)) (courant, '${libelleMois(courant)} (hors de la période)'),
     ];
   }
 

@@ -677,7 +677,7 @@ void main() {
       expect(await nbEleves(), 2);
       final copies = dossier.listSync().where(estCopie).cast<File>().toList();
       expect(copies, hasLength(1));
-      expect(p.basename(copies.single.path), startsWith('avant-mise-a-jour_v3-vers-v4_'));
+      expect(p.basename(copies.single.path), startsWith('avant-mise-a-jour_v3-vers-v${GescoDatabase.versionSchema}_'));
 
       // La copie garde l'ancienne version et toutes les données.
       final c = await databaseFactoryFfi.openDatabase(

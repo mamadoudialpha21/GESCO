@@ -234,7 +234,9 @@ class ServiceExport {
     }
     if (type.periodeSeulement &&
         (options.cle == cleAnnee || RegExp(r'^m\d+$').hasMatch(options.cle))) {
-      throw const ErreurGesco('Choisissez un trimestre (ou une période), pas un mois ni l\'année.');
+      throw const ErreurGesco(
+        'Choisissez une période (trimestre, semestre ou composition), pas un mois ni l\'année.',
+      );
     }
     final ctx = await _contexte(anneeId);
     final avertissements = <String>[];

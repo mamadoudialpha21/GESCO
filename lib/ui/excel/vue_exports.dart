@@ -158,7 +158,7 @@ class _VueExportsState extends State<VueExports> {
                 const SizedBox(height: 12),
                 ChoixListe<String>(
                   cleChamp: const Key('excel_periode'),
-                  libelle: type.periodeSeulement ? 'Trimestre (ou période)' : 'Période',
+                  libelle: type.periodeSeulement ? 'Période (trimestre, semestre, composition)' : 'Période',
                   valeur: cle,
                   options: etendues,
                   onChanged: (v) {
