@@ -68,6 +68,16 @@ void main() {
     fail('Élément introuvable : $f');
   }
 
+  /// Attend qu'un élément ait disparu (fenêtre refermée, par exemple).
+  Future<void> attendreAbsent(WidgetTester tester, Finder f) async {
+    for (var i = 0; i < 60; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+      if (f.evaluate().isEmpty) return;
+    }
+    fail('Élément toujours présent : $f');
+  }
+
   Future<void> fin(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(() => gdb.fermer());
@@ -101,6 +111,9 @@ void main() {
     await tester.enterText(find.byKey(const Key('programme_coefficient')), coefficient);
     await tester.tap(find.byKey(const Key('programme_enregistrer')));
     await tester.pump();
+    // Le champ de la fenêtre contient aussi le nom : on attend d'abord qu'elle
+    // se referme, puis que la ligne apparaisse dans la liste.
+    await attendreAbsent(tester, find.byKey(const Key('programme_nom')));
     await attendre(tester, find.text(nom));
   }
 
@@ -171,6 +184,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('programme_nom_classe')), 'CP A');
     await tester.tap(find.byKey(const Key('programme_creer_classe')));
     await tester.pump();
+    await attendreAbsent(tester, find.byKey(const Key('programme_nom_classe')));
     await attendre(tester, find.text('CP A'));
     expect(find.byKey(const Key('classes_programme_vide')), findsNothing);
     expect(await matieres(tester, 'CP A'), [('Lecture', 200)]);
@@ -199,6 +213,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('programme_coefficient')), '4,5');
     await tester.tap(find.byKey(const Key('programme_enregistrer')));
     await tester.pump();
+    await attendreAbsent(tester, find.byKey(const Key('programme_coefficient')));
     await attendre(tester, find.text('Coefficient 4,5 · sur 20'));
     expect(await matieres(tester, 'CE1 A'), [('Lecture', 450)]);
 
@@ -246,9 +261,15 @@ void main() {
     }
     expect([for (final m in liste) m.nom], ['Calcul', 'Lecture']);
     // L'écran suit : « Calcul » est maintenant au-dessus de « Lecture ».
-    await attendre(tester, find.byKey(Key('matiere_programme_${liste.first.id}')));
-    final haut = tester.getTopLeft(find.text('Calcul')).dy;
-    final bas = tester.getTopLeft(find.text('Lecture')).dy;
+    var haut = 0.0;
+    var bas = 0.0;
+    for (var i = 0; i < 30; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 100));
+      haut = tester.getTopLeft(find.text('Calcul')).dy;
+      bas = tester.getTopLeft(find.text('Lecture')).dy;
+      if (haut < bas) break;
+    }
     expect(haut, lessThan(bas));
     await fin(tester);
   });
