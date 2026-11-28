@@ -292,7 +292,7 @@ class _VueSaisieState extends State<VueSaisie> {
     final periodes = periodesDuCalendrier(d.calendrier);
     final periode = periodes.firstWhere(
       (p) => p == _periode,
-      orElse: () => Periode.moisDe((widget.maintenant ?? DateTime.now)()),
+      orElse: () => moisParDefaut(d.calendrier, (widget.maintenant ?? DateTime.now)()),
     );
     final haut = _Selection(
       classes: d.classes,

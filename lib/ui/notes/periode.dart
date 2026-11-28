@@ -12,9 +12,7 @@ enum GenrePeriode { mois, trimestre, sequence, annee }
 /// (1 = première période) ; [etiquette] est le nom que lui donne ce calendrier
 /// (« Semestre 1 »...) et ne compte pas dans l'égalité.
 class Periode {
-  const Periode.mois(this.numero)
-      : genre = GenrePeriode.mois,
-        etiquette = null;
+  const Periode.mois(this.numero, {this.etiquette}) : genre = GenrePeriode.mois;
   const Periode.trimestre(this.numero, {this.etiquette}) : genre = GenrePeriode.trimestre;
   const Periode.sequence(this.numero, {this.etiquette}) : genre = GenrePeriode.sequence;
   const Periode.annee()
@@ -77,10 +75,14 @@ int _dernierMois(PeriodeScolaire groupe) =>
 
 /// Périodes dans l'ordre d'affichage : après ses derniers mois viennent la
 /// séquence, puis la période qui les regroupe ; l'année est en dernier.
+///
+/// Seuls les mois où l'on saisit des notes sont proposés ([Calendrier.moisDeSaisie]) :
+/// pour les compositions, décembre, mars et juin. Un mois de composition porte
+/// son numéro (« Janvier (Compo 1) »).
 List<Periode> periodesDuCalendrier(Calendrier calendrier) {
   final resultat = <Periode>[];
-  for (final mois in moisScolaires) {
-    resultat.add(Periode.mois(mois));
+  for (final mois in calendrier.moisDeSaisie) {
+    resultat.add(Periode.mois(mois, etiquette: calendrier.libelleDuMois(mois)));
     for (var i = 0; i < calendrier.sequences.length; i++) {
       final s = calendrier.sequences[i];
       if (s.mois.isNotEmpty && _dernierMois(s) == mois) {
@@ -100,3 +102,24 @@ List<Periode> periodesDuCalendrier(Calendrier calendrier) {
 
 /// Périodes du calendrier par défaut (trois trimestres).
 final List<Periode> periodesAffichees = periodesDuCalendrier(Calendrier.defaut);
+
+/// Mois à proposer par défaut à la [date] : le mois courant s'il fait partie des
+/// mois de saisie du calendrier, sinon le prochain mois de saisie de l'année (le
+/// dernier s'il n'en reste plus). Hors de l'année scolaire : le premier. Sans
+/// aucun mois de saisie : l'année.
+Periode moisParDefaut(Calendrier calendrier, DateTime date) {
+  final mois = calendrier.moisDeSaisie;
+  if (mois.isEmpty) return const Periode.annee();
+  final rang = moisScolaires.indexOf(date.month);
+  var choisi = mois.first;
+  if (rang >= 0) {
+    choisi = mois.last;
+    for (final m in mois) {
+      if (moisScolaires.indexOf(m) >= rang) {
+        choisi = m;
+        break;
+      }
+    }
+  }
+  return periodesDuCalendrier(calendrier).firstWhere((p) => p == Periode.mois(choisi));
+}

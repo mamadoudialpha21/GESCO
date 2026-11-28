@@ -14,6 +14,7 @@ import '../data/depots/journal_depot.dart';
 import '../data/depots/matiere_depot.dart';
 import '../data/depots/note_depot.dart';
 import '../data/depots/parametre_depot.dart';
+import '../data/depots/programme_depot.dart';
 import '../data/depots/utilisateur_depot.dart';
 import '../data/gesco_database.dart';
 import '../data/securite.dart';
@@ -48,6 +49,7 @@ class Services {
         calendriers = CalendrierDepot(gdb.db, controle: controle),
         classes = ClasseDepot(gdb.db, controle: controle),
         matieres = MatiereDepot(gdb.db, controle: controle),
+        programmes = ProgrammeDepot(gdb.db, controle: controle),
         eleves = EleveDepot(gdb.db, controle: controle),
         enseignants = EnseignantDepot(gdb.db, controle: controle),
         absences = AbsenceDepot(gdb.db, controle: controle),
@@ -75,6 +77,9 @@ class Services {
   final CalendrierDepot calendriers;
   final ClasseDepot classes;
   final MatiereDepot matieres;
+
+  /// Matières et coefficients de chaque cycle (et option du lycée).
+  final ProgrammeDepot programmes;
   final EleveDepot eleves;
   final EnseignantDepot enseignants;
   final AbsenceDepot absences;

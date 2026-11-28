@@ -47,11 +47,12 @@ void main() {
           anneeId: annee.id,
           classeId: c.id,
         );
-        // Note de janvier : 2e trimestre au primaire, 1er trimestre au collège.
+        // Primaire : note de la composition de mars (compo 2). Collège et lycée :
+        // note de janvier (composition 1, dans le semestre 1).
         await s.notes.enregistrer(
           inscriptionId: eleve,
           matiereId: maths,
-          mois: 1,
+          mois: niveau <= 6 ? 3 : 1,
           saisie: const Saisie.valeur(1400),
         );
         return c.id;
@@ -102,12 +103,19 @@ void main() {
   String periodeChoisie(WidgetTester tester) =>
       tester.widget<DropdownButton<String>>(find.byKey(const Key('choix_portee'))).value!;
 
-  /// Périodes proposées (trimestres) quand on ouvre la liste « Période ».
+  /// Périodes du calendrier proposées quand on ouvre la liste « Période ».
   Future<List<String>> trimestresProposes(WidgetTester tester) async {
     await tester.tap(find.byKey(const Key('choix_portee')));
     await tester.pumpAndSettle();
     final trouves = [
-      for (final t in ['Trimestre 1', 'Trimestre 2', 'Trimestre 3'])
+      for (final t in [
+        'Compo 1 (décembre)',
+        'Compo 2 (mars)',
+        'Compo 3 (juin)',
+        'Semestre 1',
+        'Semestre 2',
+        'Trimestre 1',
+      ])
         if (find.text(t).evaluate().isNotEmpty) t,
     ];
     // Referme la liste sans changer de période.
@@ -120,20 +128,21 @@ void main() {
     await demarrer(tester, date: DateTime(2026, 11, 5));
     await attendre(tester, find.byKey(const Key('choix_classe')));
 
-    // Première classe : CE2 A (primaire) -> trois trimestres.
-    expect(await trimestresProposes(tester), ['Trimestre 1', 'Trimestre 2', 'Trimestre 3']);
+    // Première classe : CE2 A (primaire) -> trois compositions.
+    expect(await trimestresProposes(tester),
+        ['Compo 1 (décembre)', 'Compo 2 (mars)', 'Compo 3 (juin)']);
 
     await choisir(tester, 'choix_classe', '8e A');
     await attendre(tester, find.byKey(const Key('choix_portee')));
-    expect(await trimestresProposes(tester), ['Trimestre 1', 'Trimestre 2']);
+    expect(await trimestresProposes(tester), ['Semestre 1', 'Semestre 2']);
 
     await choisir(tester, 'choix_classe', 'Tle SM');
     await attendre(tester, find.byKey(const Key('choix_portee')));
-    expect(await trimestresProposes(tester), ['Trimestre 1', 'Trimestre 2']);
+    expect(await trimestresProposes(tester), ['Semestre 1', 'Semestre 2']);
     await fin(tester);
   });
 
-  testWidgets('en janvier : 2e trimestre au primaire, 1er trimestre au collège',
+  testWidgets('en janvier : composition 2 à venir au primaire, semestre 1 au collège',
       (tester) async {
     await demarrer(tester, date: DateTime(2026, 1, 15));
     await attendre(tester, find.byKey(const Key('choix_classe')));
@@ -152,7 +161,7 @@ void main() {
     await tester.pump();
     await attendre(tester, find.byKey(const Key('choix_cycle_classes')));
 
-    // Primaire d'abord : seule CE2 A est comparée, avec son calendrier (T2).
+    // Primaire d'abord : seule CE2 A est comparée, avec son calendrier (compo 2).
     await attendre(tester, find.byKey(Key('classe_nom_$primaire')));
     expect(find.byKey(Key('classe_nom_$college')), findsNothing);
     expect(find.byKey(Key('classe_nom_$lycee')), findsNothing);

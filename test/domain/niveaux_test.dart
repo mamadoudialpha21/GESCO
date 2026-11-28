@@ -4,15 +4,30 @@ import 'package:gesco/domain/niveaux.dart';
 
 void main() {
   group('catalogue des niveaux', () {
-    test('treize niveaux : 1re à 6e année, 7e à 10e, 11e, 12e, Terminale', () {
-      expect(niveauxScolaires.length, 13);
-      expect([for (final n in niveauxScolaires) n.code], List.generate(13, (i) => i + 1));
-      expect(niveauxScolaires.first.libelle, '1ère année');
+    test('seize niveaux : trois sections de maternelle, 1re à 6e année, 7e à 10e, 11e, 12e, Terminale', () {
+      expect(niveauxScolaires.length, 16);
+      expect([for (final n in niveauxScolaires) n.code], [14, 15, 16, ...List.generate(13, (i) => i + 1)]);
+      expect(niveauxScolaires.first.libelle, 'Petite section');
       expect(niveauxScolaires.last.libelle, 'Terminale');
       expect(niveauxScolaires.last.code, NiveauScolaire.codeTerminale);
+      expect(niveauxScolaires.map((n) => n.code).reduce((a, b) => a > b ? a : b), codeNiveauMax);
     });
 
-    test('cycles : primaire 1-6, collège 7-10, lycée 11-Terminale', () {
+    test('quatre cycles : maternelle, primaire, collège, lycée', () {
+      expect([for (final c in Cycle.values) c.cle], ['maternelle', 'primaire', 'college', 'lycee']);
+    });
+
+    test('la maternelle est rangée avant la 1re année', () {
+      final tries = [for (final n in niveauxScolaires) n.code]..sort((a, b) => ordreDuNiveau(a) - ordreDuNiveau(b));
+      expect(tries, [14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    });
+
+    test('cycles : maternelle 14-16, primaire 1-6, collège 7-10, lycée 11-Terminale', () {
+      expect([for (final n in niveauxDuCycle(Cycle.maternelle)) n.libelle],
+          ['Petite section', 'Moyenne section', 'Grande section']);
+      expect(cycleDuNiveau(14), Cycle.maternelle);
+      expect(cycleDuNiveau(16), Cycle.maternelle);
+      expect(cycleDuNiveau(17), isNull);
       expect([for (final n in niveauxDuCycle(Cycle.primaire)) n.code], [1, 2, 3, 4, 5, 6]);
       expect([for (final n in niveauxDuCycle(Cycle.college)) n.code], [7, 8, 9, 10]);
       expect([for (final n in niveauxDuCycle(Cycle.lycee)) n.code], [11, 12, 13]);
@@ -22,13 +37,12 @@ void main() {
       expect(cycleDuNiveau(11), Cycle.lycee);
       expect(cycleDuNiveau(13), Cycle.lycee);
       expect(cycleDuNiveau(0), isNull);
-      expect(cycleDuNiveau(14), isNull);
       expect(cycleDuNiveau(null), isNull);
     });
 
     test('seul le lycée a des options', () {
       for (final n in niveauxScolaires) {
-        expect(n.aDesOptions, n.code >= 11, reason: n.libelle);
+        expect(n.aDesOptions, n.cycle == Cycle.lycee, reason: n.libelle);
       }
     });
 
@@ -79,8 +93,12 @@ void main() {
       '': null,
       '   ': null,
       'Maternelle': null,
+      'Petite section': 14,
+      'moyenne section': 15,
+      'Grande Section': 16,
       '2026': null,
       '15e': null,
+      '17e': null,
       '0': null,
     };
     cas.forEach((texte, attendu) {
@@ -109,19 +127,22 @@ void main() {
   });
 
   group('calendrier par cycle', () {
-    test('primaire : trois trimestres', () {
-      final c = Calendrier.pourCycle(Cycle.primaire);
-      expect(c.periodes.length, 3);
-      expect([for (final p in c.periodes) p.libelle],
-          ['Trimestre 1', 'Trimestre 2', 'Trimestre 3']);
-      expect(c.erreurs(), isEmpty);
+    test('maternelle et primaire : trois compositions (décembre, mars, juin)', () {
+      for (final cycle in [Cycle.maternelle, Cycle.primaire]) {
+        final c = Calendrier.pourCycle(cycle);
+        expect(c.periodes.length, 3, reason: cycle.libelle);
+        expect([for (final p in c.periodes) p.libelle],
+            ['Compo 1 (décembre)', 'Compo 2 (mars)', 'Compo 3 (juin)']);
+        expect([for (final p in c.periodes) p.cle], ['t1', 't2', 't3']);
+        expect(c.erreurs(), isEmpty);
+      }
     });
 
-    test('collège et lycée : deux trimestres couvrant octobre à juin', () {
+    test('collège et lycée : deux semestres couvrant octobre à juin', () {
       for (final cycle in [Cycle.college, Cycle.lycee]) {
         final c = Calendrier.pourCycle(cycle);
         expect(c.periodes.length, 2, reason: cycle.libelle);
-        expect([for (final p in c.periodes) p.libelle], ['Trimestre 1', 'Trimestre 2']);
+        expect([for (final p in c.periodes) p.libelle], ['Semestre 1', 'Semestre 2']);
         expect(c.erreurs(), isEmpty);
         final mois = [for (final p in c.periodes) ...p.mois]..sort();
         expect(mois, [1, 2, 3, 4, 5, 6, 10, 11, 12]);
@@ -136,17 +157,18 @@ void main() {
       expect(Calendrier.pourCycle(null), Calendrier.defaut);
     });
 
-    test('le calendrier à deux trimestres se relit tel quel', () {
+    test('le calendrier à deux trimestres (ancien modèle) se relit tel quel', () {
       final relu = Calendrier.fromJsonString(Calendrier.deuxTrimestres.toJsonString());
       expect(relu, Calendrier.deuxTrimestres);
       expect(relu.type, TypePeriodes.deuxTrimestres);
     });
 
-    test('CalendriersAnnee : cycle absent = modèle du cycle', () {
+    test('CalendriersAnnee : cycle absent = méthode du cycle', () {
       const c = CalendriersAnnee();
-      expect(c.pour(Cycle.primaire), Calendrier.trimestres);
-      expect(c.pour(Cycle.college), Calendrier.deuxTrimestres);
-      expect(c.pour(Cycle.lycee), Calendrier.deuxTrimestres);
+      expect(c.pour(Cycle.maternelle), Calendrier.compositions);
+      expect(c.pour(Cycle.primaire), Calendrier.compositions);
+      expect(c.pour(Cycle.college), Calendrier.semestresCompo);
+      expect(c.pour(Cycle.lycee), Calendrier.semestresCompo);
       expect(c.pour(null), Calendrier.defaut);
 
       final perso = CalendriersAnnee(
@@ -154,7 +176,7 @@ void main() {
         parCycle: {Cycle.college: Calendrier.trimestres},
       );
       expect(perso.pour(Cycle.college), Calendrier.trimestres);
-      expect(perso.pour(Cycle.lycee), Calendrier.deuxTrimestres);
+      expect(perso.pour(Cycle.lycee), Calendrier.semestresCompo);
       expect(perso.pour(null), Calendrier.semestres);
     });
   });

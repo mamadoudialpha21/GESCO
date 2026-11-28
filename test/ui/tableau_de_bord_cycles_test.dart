@@ -54,11 +54,13 @@ void main() {
           anneeId: annee.id,
           classeId: c.id,
         );
-        // Janvier : 2e trimestre au primaire, 1er trimestre au collège et au lycée.
+        // Primaire : composition de mars (compo 2). Collège et lycée : janvier,
+        // composition 1 du semestre 1.
+        final cycle = cycleDuNiveau(niveau);
         await s.notes.enregistrer(
           inscriptionId: eleve,
           matiereId: maths,
-          mois: 1,
+          mois: (cycle == Cycle.primaire || cycle == Cycle.maternelle) ? 3 : 1,
           saisie: const Saisie.valeur(1400),
         );
       }
@@ -113,13 +115,13 @@ void main() {
     expect(texte(tester, 'dash_cycle_lycee'), 'Lycée');
     expect(find.byKey(const Key('dash_cycle_autres')), findsNothing);
 
-    // Primaire : trois trimestres ; janvier tombe dans le 2e.
+    // Primaire : trois compositions ; la note de mars est dans la 2e.
     final ce2 = ids['CE2 A']!;
     expect(find.byKey(Key('dash_periode_${ce2}_t3')), findsOneWidget);
     expect(texte(tester, 'dash_periode_${ce2}_t1'), '—');
     expect(texte(tester, 'dash_periode_${ce2}_t2'), '14,00');
 
-    // Collège et lycée : deux trimestres ; janvier tombe dans le 1er.
+    // Collège et lycée : deux semestres ; janvier (composition 1) est dans le 1er.
     for (final nom in ['8e A', 'Tle SM']) {
       final id = ids[nom]!;
       expect(find.byKey(Key('dash_periode_${id}_t3')), findsNothing, reason: nom);

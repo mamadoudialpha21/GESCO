@@ -10,10 +10,11 @@ import '../commun/composants.dart';
 import '../commun/dialogues.dart';
 import '../theme.dart';
 
-/// Découpage de l'année en périodes (trimestres, semestres ou personnalisé),
-/// séquences facultatives et affichage des moyennes mensuelles. Propre à
-/// chaque année scolaire et à chaque cycle d'études : le primaire a trois
-/// trimestres, le collège et le lycée deux.
+/// Méthode de calcul et découpage de l'année en périodes. Propre à chaque année
+/// scolaire et à chaque cycle d'études : la maternelle et le primaire calculent
+/// par compositions (décembre, mars, juin), le collège et le lycée par mois,
+/// compositions et semestres. L'ancienne méthode (trimestres, semestres ou
+/// découpage personnalisé, séquences facultatives) reste disponible.
 class OngletPeriodes extends StatefulWidget {
   const OngletPeriodes({super.key, required this.etat});
 
@@ -117,6 +118,7 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
   late List<_Groupe> _periodes;
   late List<_Groupe> _sequences;
   late bool _moyenneMensuelle;
+  late bool _ponderee;
 
   /// Groupes retirés : libérés à la fermeture de l'écran seulement, pour ne pas
   /// toucher à un champ encore affiché.
@@ -144,6 +146,33 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
     _periodes = _groupes(c.periodes);
     _sequences = _groupes(c.sequences);
     _moyenneMensuelle = c.moyenneMensuelle;
+    _ponderee = c.ponderee;
+  }
+
+  /// Vrai si le calendrier suit la méthode de calcul du cycle (compositions,
+  /// ou mois + compositions + semestres).
+  bool get _methodeDuCycle =>
+      _type == TypePeriodes.compositions || _type == TypePeriodes.semestresCompo;
+
+  /// Ancien modèle du cycle : trois trimestres au primaire et en maternelle,
+  /// deux trimestres au collège et au lycée.
+  static Calendrier _modeleAncien(Cycle cycle) => switch (cycle) {
+        Cycle.maternelle || Cycle.primaire => Calendrier.trimestres,
+        Cycle.college || Cycle.lycee => Calendrier.deuxTrimestres,
+      };
+
+  void _choisirMethode({required bool duCycle}) {
+    final cycle = widget.cycle;
+    if (cycle == null) return;
+    setState(() {
+      final modele = duCycle ? Calendrier.pourCycle(cycle) : _modeleAncien(cycle);
+      _type = modele.type;
+      _retires
+        ..addAll(_periodes)
+        ..addAll(_sequences);
+      _periodes = _groupes(modele.periodes);
+      _sequences = _groupes(modele.sequences);
+    });
   }
 
   void _choisirType(TypePeriodes type) {
@@ -153,6 +182,8 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
         TypePeriodes.trimestres => Calendrier.trimestres,
         TypePeriodes.deuxTrimestres => Calendrier.deuxTrimestres,
         TypePeriodes.semestres => Calendrier.semestres,
+        TypePeriodes.compositions => Calendrier.compositions,
+        TypePeriodes.semestresCompo => Calendrier.semestresCompo,
         TypePeriodes.personnalise => null,
       };
       if (modele != null) {
@@ -226,6 +257,14 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
   }
 
   Calendrier _calendrier() {
+    // Méthode du cycle : la structure est fixe (mois des compositions et des
+    // semestres), seuls la pondération et l'affichage se règlent.
+    if (_methodeDuCycle) {
+      final modele = _type == TypePeriodes.compositions
+          ? Calendrier.compositions
+          : Calendrier.semestresCompo;
+      return modele.copyWith(moyenneMensuelle: _moyenneMensuelle, ponderee: _ponderee);
+    }
     PeriodeScolaire versPeriode(_Groupe g) => PeriodeScolaire(
           cle: g.cle,
           libelle: g.nom.text.trim(),
@@ -236,6 +275,7 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
       periodes: [for (final g in _periodes) versPeriode(g)],
       sequences: [for (final g in _sequences) versPeriode(g)],
       moyenneMensuelle: _moyenneMensuelle,
+      ponderee: _ponderee,
     );
   }
 
@@ -281,10 +321,10 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
               children: [
                 _carte(
                   titre: 'Cycle d\'études',
-                  aide: 'Primaire : 1ère à 6ème année, trois trimestres. Collège : '
-                      '7ème à 10ème année, deux trimestres. Lycée : 11ème année à '
-                      'Terminale, deux trimestres. Changer de cycle abandonne les '
-                      'modifications non enregistrées.',
+                  aide: 'Maternelle : petite à grande section. Primaire : 1ère à 6ème '
+                      'année. Collège : 7ème à 10ème année. Lycée : 11ème année à '
+                      'Terminale. Chaque cycle a sa méthode de calcul. Changer de '
+                      'cycle abandonne les modifications non enregistrées.',
                   enfants: [
                     SegmentedButton<String>(
                       showSelectedIcon: false,
@@ -308,6 +348,46 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
                     ),
                   ],
                 ),
+                if (widget.cycle != null)
+                  _carte(
+                    titre: 'Méthode de calcul',
+                    aide: 'La méthode du cycle est celle de GESCO pour ce cycle. '
+                        'L\'ancienne méthode (par trimestres ou semestres, '
+                        'découpage libre) reste possible.',
+                    enfants: [
+                      SegmentedButton<bool>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: true,
+                            label: Text(
+                              'Méthode du cycle',
+                              key: const Key('methode_cycle'),
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: false,
+                            label: Text(
+                              'Ancienne méthode',
+                              key: const Key('methode_ancienne'),
+                            ),
+                          ),
+                        ],
+                        selected: {_methodeDuCycle},
+                        onSelectionChanged: modifiable
+                            ? (choix) => _choisirMethode(duCycle: choix.first)
+                            : null,
+                      ),
+                      if (_methodeDuCycle) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          _descriptionMethode(_type),
+                          key: const Key('description_methode'),
+                        ),
+                      ],
+                    ],
+                  ),
+                if (!_methodeDuCycle) ...[
                 _carte(
                   titre: 'Type de périodes',
                   aide: 'Chaque mois (octobre à juin) appartient à une seule période.',
@@ -370,6 +450,25 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
                         modifiable: modifiable,
                         couvrirTout: true,
                       ),
+                  ],
+                ),
+                ],
+                _carte(
+                  titre: 'Calcul des moyennes',
+                  enfants: [
+                    SwitchListTile(
+                      key: const Key('option_ponderee'),
+                      contentPadding: EdgeInsets.zero,
+                      value: _ponderee,
+                      onChanged: modifiable ? (v) => setState(() => _ponderee = v) : null,
+                      title: const Text('Pondérer par les coefficients des matières'),
+                      subtitle: const Text(
+                        'Activé : moyenne = Σ(note × coefficient) ÷ Σ coefficients ; '
+                        'avec des coefficients tous égaux à 1, c\'est la somme des '
+                        'notes ÷ le nombre de matières. Désactivé : moyenne simple, '
+                        'les coefficients sont ignorés.',
+                      ),
+                    ),
                   ],
                 ),
                 _carte(
@@ -500,6 +599,22 @@ class _EditeurPeriodesState extends State<_EditeurPeriodes> {
         ),
     ];
   }
+
+  static String _descriptionMethode(TypePeriodes type) => switch (type) {
+        TypePeriodes.compositions =>
+          'Trois compositions par an : décembre (compo 1), mars (compo 2) et juin '
+              '(compo 3). Moyenne d\'une composition = somme des notes de la '
+              'composition ÷ nombre de matières. Note finale = somme des moyennes '
+              'des compositions ÷ nombre de compositions.',
+        TypePeriodes.semestresCompo =>
+          'Une note par matière et par mois, d\'octobre à juin. Moyenne d\'un mois = '
+              'somme des notes ÷ nombre de matières. La moyenne de janvier est la '
+              'composition 1, celle de juin la composition 2. Semestre 1 = (2 × '
+              'composition 1 + moyenne des mois d\'octobre, novembre et décembre) ÷ 3. '
+              'Semestre 2 = (2 × composition 2 + moyenne des mois de février à mai) ÷ 3. '
+              'Moyenne de l\'année = (semestre 1 + semestre 2) ÷ 2.',
+        _ => '',
+      };
 
   Widget _carte({
     required String titre,

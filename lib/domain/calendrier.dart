@@ -1,5 +1,10 @@
 /// Calendrier scolaire configurable : périodes (trimestres, semestres ou
-/// découpage personnalisé) et séquences facultatives.
+/// découpage personnalisé), séquences facultatives et méthode de calcul.
+///
+/// Trois méthodes de calcul existent (voir [MethodeCalcul]) : l'ancienne
+/// (moyenne des moyennes mensuelles), les compositions de la maternelle et du
+/// primaire (décembre, mars, juin) et les semestres du collège et du lycée
+/// (mois + composition, janvier et juin faisant office de compositions).
 ///
 /// Le mois reste l'unité de base : une période est un groupe de mois de
 /// l'année scolaire (octobre à juin). Chaque mois appartient à une seule
@@ -19,6 +24,8 @@ class PeriodeScolaire {
     required this.cle,
     required this.libelle,
     required this.mois,
+    this.moisCompo,
+    this.poidsCompo = 2,
   });
 
   /// Identifiant stable (t1, s2, q3...). Utilisé pour les appréciations.
@@ -28,12 +35,29 @@ class PeriodeScolaire {
   /// Mois civils (10, 11, 12, 1...), dans l'ordre de l'année scolaire.
   final List<int> mois;
 
-  Map<String, Object?> toJson() => {'cle': cle, 'libelle': libelle, 'mois': mois};
+  /// Mois dont la moyenne est la **composition** de la période (janvier pour
+  /// le premier semestre, juin pour le second). Null : toutes les moyennes
+  /// mensuelles pèsent pareil (ancienne méthode).
+  final int? moisCompo;
+
+  /// Poids de la composition face à la moyenne des autres mois : avec 2, la
+  /// moyenne de la période est (2 × composition + moyenne des mois) ÷ 3.
+  final int poidsCompo;
+
+  Map<String, Object?> toJson() => {
+        'cle': cle,
+        'libelle': libelle,
+        'mois': mois,
+        if (moisCompo != null) 'moisCompo': moisCompo,
+        if (moisCompo != null) 'poidsCompo': poidsCompo,
+      };
 
   factory PeriodeScolaire.fromJson(Map<String, dynamic> json) => PeriodeScolaire(
         cle: json['cle'] as String,
         libelle: json['libelle'] as String,
         mois: [for (final m in json['mois'] as List) m as int],
+        moisCompo: json['moisCompo'] as int?,
+        poidsCompo: json['poidsCompo'] as int? ?? 2,
       );
 
   @override
@@ -41,10 +65,13 @@ class PeriodeScolaire {
       other is PeriodeScolaire &&
       other.cle == cle &&
       other.libelle == libelle &&
+      other.moisCompo == moisCompo &&
+      other.poidsCompo == poidsCompo &&
       _memesMois(other.mois, mois);
 
   @override
-  int get hashCode => Object.hash(cle, libelle, Object.hashAll(mois));
+  int get hashCode =>
+      Object.hash(cle, libelle, moisCompo, poidsCompo, Object.hashAll(mois));
 
   static bool _memesMois(List<int> a, List<int> b) {
     if (a.length != b.length) return false;
@@ -65,7 +92,30 @@ enum TypePeriodes {
   /// Deux trimestres (octobre-janvier, février-juin) : modèle du collège et
   /// du lycée.
   deuxTrimestres,
+
+  /// Compositions de la maternelle et du primaire : décembre, mars et juin.
+  compositions,
+
+  /// Semestres du collège et du lycée : mois + composition (janvier, juin).
+  semestresCompo,
   personnalise,
+}
+
+/// Façon de calculer les moyennes d'une période.
+enum MethodeCalcul {
+  /// Ancienne méthode : une période est la moyenne de ses moyennes mensuelles.
+  moyenneDesMois,
+
+  /// Maternelle et primaire : trois compositions (décembre, mars, juin).
+  /// Moyenne d'une composition = moyenne des notes de la composition ; note
+  /// finale = moyenne des moyennes des compositions.
+  compositions,
+
+  /// Collège et lycée : une note par matière et par mois (octobre à juin).
+  /// Janvier est la composition 1, juin la composition 2. Moyenne d'un
+  /// semestre = (2 × composition + moyenne des autres mois) ÷ 3 ; moyenne de
+  /// l'année = (semestre 1 + semestre 2) ÷ 2.
+  semestresCompo,
 }
 
 /// Clé réservée à la période « année entière ».
@@ -107,6 +157,7 @@ class Calendrier {
     required this.periodes,
     this.sequences = const [],
     this.moyenneMensuelle = true,
+    this.ponderee = true,
   });
 
   final TypePeriodes type;
@@ -117,6 +168,62 @@ class Calendrier {
 
   /// Affichage des moyennes mensuelles (grille par mois).
   final bool moyenneMensuelle;
+
+  /// Vrai (par défaut) : la moyenne d'un mois est pondérée par les coefficients
+  /// des matières, ce qui donne « somme des notes ÷ nombre de matières » quand
+  /// tous les coefficients valent 1. Faux : moyenne simple, coefficients ignorés
+  /// (somme des notes ÷ nombre de matières notées).
+  final bool ponderee;
+
+  /// Méthode de calcul de ce calendrier.
+  MethodeCalcul get methode => switch (type) {
+        TypePeriodes.compositions => MethodeCalcul.compositions,
+        TypePeriodes.semestresCompo => MethodeCalcul.semestresCompo,
+        _ => MethodeCalcul.moyenneDesMois,
+      };
+
+  /// Mois où des notes sont saisies pour ce calendrier, dans l'ordre de
+  /// l'année : les neuf mois, sauf pour les compositions (décembre, mars, juin).
+  List<int> get moisDeSaisie => [
+        for (final m in moisScolaires)
+          if (periodes.any((p) => p.mois.contains(m))) m,
+      ];
+
+  /// Numéro de composition d'un mois (1, 2, 3), ou null si ce mois n'est pas
+  /// une composition : décembre, mars et juin pour les compositions ; janvier
+  /// et juin pour les semestres du collège et du lycée.
+  int? numeroCompo(int mois) {
+    for (var i = 0; i < periodes.length; i++) {
+      final p = periodes[i];
+      switch (methode) {
+        case MethodeCalcul.compositions:
+          if (p.mois.contains(mois)) return i + 1;
+        case MethodeCalcul.semestresCompo:
+          if (p.moisCompo == mois) return i + 1;
+        case MethodeCalcul.moyenneDesMois:
+          break;
+      }
+    }
+    return null;
+  }
+
+  /// Description courte de la méthode : « 3 compositions », « 2 semestres avec
+  /// compositions », « 3 périodes »...
+  String get descriptionCourte {
+    final n = periodes.length;
+    return switch (methode) {
+      MethodeCalcul.compositions => '$n compositions',
+      MethodeCalcul.semestresCompo => '$n semestres avec compositions',
+      MethodeCalcul.moyenneDesMois => n > 1 ? '$n périodes' : '$n période',
+    };
+  }
+
+  /// Nom d'un mois dans ce calendrier : « Janvier », ou « Janvier (Compo 1) »
+  /// quand ce mois est une composition.
+  String libelleDuMois(int mois) {
+    final n = numeroCompo(mois);
+    return n == null ? libelleMois(mois) : '${libelleMois(mois)} (Compo $n)';
+  }
 
   static const Calendrier trimestres = Calendrier(
     type: TypePeriodes.trimestres,
@@ -145,15 +252,40 @@ class Calendrier {
     ],
   );
 
+  /// Maternelle et primaire : trois compositions, en décembre, en mars et en
+  /// juin. La note finale est la moyenne des moyennes des compositions. Les
+  /// identifiants (t1, t2, t3) sont ceux des anciens trimestres : les
+  /// appréciations déjà saisies restent rattachées à la période correspondante.
+  static const Calendrier compositions = Calendrier(
+    type: TypePeriodes.compositions,
+    periodes: [
+      PeriodeScolaire(cle: 't1', libelle: 'Compo 1 (décembre)', mois: [12]),
+      PeriodeScolaire(cle: 't2', libelle: 'Compo 2 (mars)', mois: [3]),
+      PeriodeScolaire(cle: 't3', libelle: 'Compo 3 (juin)', mois: [6]),
+    ],
+  );
+
+  /// Collège et lycée : deux semestres (mêmes identifiants et mêmes mois que
+  /// les anciens « deux trimestres »). Janvier est la composition 1 du
+  /// semestre 1, juin la composition 2 du semestre 2. Moyenne d'un semestre =
+  /// (2 × composition + moyenne des autres mois) ÷ 3.
+  static const Calendrier semestresCompo = Calendrier(
+    type: TypePeriodes.semestresCompo,
+    periodes: [
+      PeriodeScolaire(cle: 't1', libelle: 'Semestre 1', mois: [10, 11, 12, 1], moisCompo: 1),
+      PeriodeScolaire(cle: 't2', libelle: 'Semestre 2', mois: [2, 3, 4, 5, 6], moisCompo: 6),
+    ],
+  );
+
   /// Calendrier appliqué tant que rien n'a été configuré.
   static const Calendrier defaut = trimestres;
 
-  /// Calendrier d'un cycle tant que rien n'a été configuré pour lui : trois
-  /// trimestres au primaire, deux au collège et au lycée. Sans cycle connu :
-  /// [defaut].
+  /// Calendrier d'un cycle tant que rien n'a été configuré pour lui : les
+  /// compositions à la maternelle et au primaire, les semestres avec
+  /// composition au collège et au lycée. Sans cycle connu : [defaut].
   static Calendrier pourCycle(Cycle? cycle) => switch (cycle) {
-        Cycle.primaire => trimestres,
-        Cycle.college || Cycle.lycee => deuxTrimestres,
+        Cycle.maternelle || Cycle.primaire => compositions,
+        Cycle.college || Cycle.lycee => semestresCompo,
         null => defaut,
       };
 
@@ -173,12 +305,14 @@ class Calendrier {
     List<PeriodeScolaire>? periodes,
     List<PeriodeScolaire>? sequences,
     bool? moyenneMensuelle,
+    bool? ponderee,
   }) =>
       Calendrier(
         type: type ?? this.type,
         periodes: periodes ?? this.periodes,
         sequences: sequences ?? this.sequences,
         moyenneMensuelle: moyenneMensuelle ?? this.moyenneMensuelle,
+        ponderee: ponderee ?? this.ponderee,
       );
 
   bool get sequencesActives => sequences.isNotEmpty;
@@ -202,6 +336,29 @@ class Calendrier {
       if (p.mois.contains(mois)) return p;
     }
     return null;
+  }
+
+  /// Période en cours au [mois] : celle qui le contient ; sinon, pour un mois
+  /// scolaire qui n'appartient à aucune période (novembre avec des
+  /// compositions, par exemple), la prochaine période de l'année, ou la
+  /// dernière s'il n'en reste plus. Null hors de l'année scolaire.
+  PeriodeScolaire? periodeEnCours(int mois) {
+    if (!moisScolaires.contains(mois)) return null;
+    final contenue = periodeDuMois(mois);
+    if (contenue != null) return contenue;
+    final rang = moisScolaires.indexOf(mois);
+    PeriodeScolaire? derniere;
+    for (final p in periodes) {
+      var fin = -1;
+      for (final m in p.mois) {
+        final r = moisScolaires.indexOf(m);
+        if (r > fin) fin = r;
+      }
+      if (fin < 0) continue;
+      derniere = p;
+      if (fin >= rang) return p;
+    }
+    return derniere;
   }
 
   PeriodeScolaire? sequenceDuMois(int mois) {
@@ -231,7 +388,13 @@ class Calendrier {
     if (periodes.length > 6) {
       e.add('Six périodes au maximum.');
     }
-    _verifierGroupes('période', periodes, e, toutCouvrir: true);
+    _verifierGroupes(
+      'période',
+      periodes,
+      e,
+      toutCouvrir: methode != MethodeCalcul.compositions,
+    );
+    _verifierMethode(e);
     if (sequences.isNotEmpty) {
       if (sequences.length > 9) e.add('Neuf séquences au maximum.');
       _verifierGroupes('séquence', sequences, e, toutCouvrir: true);
@@ -249,6 +412,41 @@ class Calendrier {
       }
     }
     return e;
+  }
+
+  /// Contrôles propres aux compositions et aux semestres avec composition.
+  void _verifierMethode(List<String> e) {
+    switch (methode) {
+      case MethodeCalcul.compositions:
+        for (final p in periodes) {
+          if (p.mois.length != 1) {
+            e.add(
+              'La composition « ${p.libelle} » doit correspondre à un seul mois.',
+            );
+          }
+        }
+        if (sequences.isNotEmpty) {
+          e.add('Les séquences ne sont pas prévues avec les compositions.');
+        }
+      case MethodeCalcul.semestresCompo:
+        for (final p in periodes) {
+          final compo = p.moisCompo;
+          if (compo == null || !p.mois.contains(compo)) {
+            e.add(
+              'La période « ${p.libelle} » doit avoir un mois de composition '
+              'parmi ses mois.',
+            );
+          }
+          if (p.poidsCompo < 1 || p.poidsCompo > 10) {
+            e.add('Le poids de la composition de « ${p.libelle} » doit être de 1 à 10.');
+          }
+        }
+        if (sequences.isNotEmpty) {
+          e.add('Les séquences ne sont pas prévues avec les semestres.');
+        }
+      case MethodeCalcul.moyenneDesMois:
+        break;
+    }
   }
 
   void _verifierGroupes(
@@ -300,6 +498,7 @@ class Calendrier {
         'periodes': [for (final p in periodes) p.toJson()],
         'sequences': [for (final s in sequences) s.toJson()],
         'moyenneMensuelle': moyenneMensuelle,
+        if (!ponderee) 'ponderee': false,
       };
 
   String toJsonString() => jsonEncode(toJson());
@@ -322,6 +521,7 @@ class Calendrier {
           PeriodeScolaire.fromJson(s as Map<String, dynamic>),
       ],
       moyenneMensuelle: json['moyenneMensuelle'] as bool? ?? true,
+      ponderee: json['ponderee'] as bool? ?? true,
     );
   }
 
@@ -333,6 +533,7 @@ class Calendrier {
       other is Calendrier &&
       other.type == type &&
       other.moyenneMensuelle == moyenneMensuelle &&
+      other.ponderee == ponderee &&
       _memesGroupes(other.periodes, periodes) &&
       _memesGroupes(other.sequences, sequences);
 
@@ -340,6 +541,7 @@ class Calendrier {
   int get hashCode => Object.hash(
         type,
         moyenneMensuelle,
+        ponderee,
         Object.hashAll(periodes),
         Object.hashAll(sequences),
       );
@@ -353,8 +555,8 @@ class Calendrier {
   }
 }
 
-/// Calendriers d'une année scolaire : un par cycle (primaire, collège,
-/// lycée), et un calendrier général pour les classes qui ne sont rattachées à
+/// Calendriers d'une année scolaire : un par cycle (maternelle, primaire,
+/// collège, lycée), et un calendrier général pour les classes qui ne sont rattachées à
 /// aucun cycle.
 class CalendriersAnnee {
   const CalendriersAnnee({

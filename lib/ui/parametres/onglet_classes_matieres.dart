@@ -771,8 +771,8 @@ class _DialogueClasseState extends State<_DialogueClasse> {
                 aide: _niveauChoisi == null
                     ? 'Sans niveau du catalogue, la classe suit le calendrier général.'
                     : 'Cycle ${_niveauChoisi!.cycle.libelle} : '
-                        '${Calendrier.pourCycle(_niveauChoisi!.cycle).periodes.length} '
-                        'trimestres par défaut.',
+                        '${Calendrier.pourCycle(_niveauChoisi!.cycle).descriptionCourte} '
+                        'par défaut.',
               ),
               if (_niveauChoisi == null) ...[
                 const SizedBox(height: 16),

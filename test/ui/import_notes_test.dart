@@ -16,6 +16,8 @@ import 'package:gesco/import_export/service_import_eleves.dart';
 import 'package:gesco/tableur/classeur.dart';
 import 'package:gesco/tableur/xlsx.dart';
 import 'package:gesco/ui/excel/page_excel.dart';
+import 'package:gesco/domain/calendrier.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const titresLibres = [
@@ -88,6 +90,8 @@ void main() {
     await tester.runAsync(() async {
       await admin.etablissements.enregistrer(const Etablissement(nom: 'Groupe Scolaire Test'));
       annee = (await admin.annees.creer('2026-2027', activer: true)).id;
+      // Ces tests portent sur l'ancien modèle (trimestres) : on le fixe explicitement.
+      await admin.calendriers.enregistrer(annee, Calendrier.deuxTrimestres, cycle: Cycle.college);
       classe = (await admin.classes.creer(anneeId: annee, nom: '10e A', niveauCode: 10)).id;
       classeObj = (await admin.classes.obtenir(classe))!;
       maths = await admin.matieres.ajouter(classeId: classe, nom: 'Maths', coefficient: 100);

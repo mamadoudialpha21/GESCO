@@ -11,6 +11,8 @@ import 'package:gesco/data/modeles_securite.dart';
 import 'package:gesco/domain/permissions.dart';
 import 'package:gesco/tableur/xlsx.dart';
 import 'package:gesco/ui/excel/page_excel.dart';
+import 'package:gesco/domain/calendrier.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -52,6 +54,8 @@ void main() {
     await tester.runAsync(() async {
       await admin.etablissements.enregistrer(const Etablissement(nom: 'Groupe Scolaire Test'));
       final annee = (await admin.annees.creer('2026-2027', activer: true)).id;
+      // Ces tests portent sur l'ancien modèle (trimestres) : on le fixe explicitement.
+      await admin.calendriers.enregistrer(annee, Calendrier.deuxTrimestres, cycle: Cycle.college);
       if (!classes) return;
       final classe = (await admin.classes.creer(anneeId: annee, nom: '10e A', niveauCode: 10)).id;
       final kante = await admin.enseignants.creer(const Enseignant(nom: 'Kante', prenom: 'Moussa'));

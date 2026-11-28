@@ -10,6 +10,7 @@ import 'package:gesco/data/modeles_donnees.dart';
 import 'package:gesco/data/modeles_notation.dart';
 import 'package:gesco/domain/calendrier.dart';
 import 'package:gesco/domain/modeles.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -105,6 +106,9 @@ void main() {
       );
       s = Services(gdb, session: Session.sansControle(), iterations: 2);
       annee = (await s.annees.creer('2026-2027', activer: true)).id;
+      // Ces tests portent sur l'ancien modèle (trimestres) : on le fixe explicitement.
+      await s.calendriers.enregistrer(annee, Calendrier.deuxTrimestres, cycle: Cycle.college);
+      await s.calendriers.enregistrer(annee, Calendrier.trimestres, cycle: Cycle.primaire);
       college = (await s.classes.creer(anneeId: annee, nom: '8e A', niveauCode: 8)).id;
       primaire = (await s.classes.creer(anneeId: annee, nom: '3e A', niveauCode: 3)).id;
       matiereCollege =

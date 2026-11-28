@@ -7,6 +7,7 @@ import 'schema.dart';
 import 'schema_v2.dart';
 import 'schema_v3.dart';
 import 'schema_v4.dart';
+import 'schema_v5.dart';
 
 /// Accès à la base SQLite locale de GESCO.
 ///
@@ -19,7 +20,7 @@ class GescoDatabase {
 
   /// Version courante du schéma. À incrémenter à chaque changement, avec
   /// l'ajout de la migration correspondante dans [migrations].
-  static const int versionSchema = 4;
+  static const int versionSchema = 5;
 
   /// Début du nom des copies faites avant une mise à jour de la base.
   static const String prefixeAvantMiseAJour = 'avant-mise-a-jour_';
@@ -34,6 +35,10 @@ class GescoDatabase {
       await rattraperNiveaux(db);
     },
     4: (db) => _executerTout(db, migrationV4),
+    5: (db) async {
+      await _executerTout(db, migrationV5);
+      await basculerCalendriersDOrigine(db);
+    },
   };
 
   static Future<void> _executerTout(Database db, List<String> instructions) async {

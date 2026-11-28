@@ -11,7 +11,6 @@ import '../../domain/arrondi.dart';
 import '../../domain/calendrier.dart';
 import '../../domain/modeles.dart';
 import '../../domain/niveaux.dart';
-import '../../domain/periodes.dart';
 import '../../domain/permissions.dart';
 import '../../domain/statistiques.dart';
 import '../commun/chargeur.dart';
@@ -122,7 +121,7 @@ class _PageResultatsState extends State<PageResultats> {
         for (final p in c.periodes) (p.cle, p.libelle),
         (cleAnnee, 'Année entière'),
         for (final s in c.sequences) (s.cle, s.libelle),
-        for (final m in moisScolaires) ('m$m', libelleMois(m)),
+        for (final m in c.moisDeSaisie) ('m$m', c.libelleDuMois(m)),
       ];
 
   Widget _contenu(BuildContext context, _DonneesResultats d) {
@@ -147,8 +146,8 @@ class _PageResultatsState extends State<PageResultats> {
       (c) => c.classe.classe.id == _classeId,
       orElse: () => d.calculs.first,
     );
-    // Les périodes dépendent du cycle : trois trimestres au primaire, deux au
-    // collège et au lycée. La vue « Classes » ne compare que les classes d'un
+    // Les périodes dépendent du cycle : trois compositions en maternelle et au
+    // primaire, deux semestres au collège et au lycée. La vue « Classes » ne compare que les classes d'un
     // même cycle (donc d'un même calendrier) ; les autres vues suivent la
     // classe choisie. Si la période choisie n'existe pas dans ce calendrier,
     // on revient à la période en cours.
@@ -164,7 +163,7 @@ class _PageResultatsState extends State<PageResultats> {
     final maintenant = (widget.maintenant ?? DateTime.now)();
     final cle = (_cle != null && calendrier.portee(_cle!) != null)
         ? _cle!
-        : (calendrier.periodeDuMois(maintenant.month)?.cle ?? cleAnnee);
+        : (calendrier.periodeEnCours(maintenant.month)?.cle ?? cleAnnee);
     final portee = calendrier.portee(cle)!;
     final matiereId =
         calcul.matieres.any((m) => m.id == _matiereId) ? _matiereId : null;

@@ -6,6 +6,7 @@ import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import 'aides.dart';
+import 'programme_depot.dart';
 
 /// Gestion des classes d'une année scolaire.
 class ClasseDepot {
@@ -47,7 +48,9 @@ class ClasseDepot {
           AS nb_garcons
       FROM classe c
       WHERE c.annee_id = ?
-      ORDER BY (c.niveau_code IS NULL), c.niveau_code, c.serie,
+      ORDER BY (c.niveau_code IS NULL),
+        CASE WHEN c.niveau_code >= 14 THEN c.niveau_code - 100 ELSE c.niveau_code END,
+        c.serie,
         c.niveau COLLATE NOCASE, c.nom COLLATE NOCASE
       ''',
       [anneeId],
@@ -105,6 +108,9 @@ class ClasseDepot {
         'capacite': reglages.capacite,
         'prof_principal_id': reglages.profPrincipalId,
       });
+      // Les matières du programme du cycle (et de l'option) sont ajoutées
+      // automatiquement.
+      await ProgrammeDepot.appliquerALaClasse(txn, id);
       return Classe(
         id: id,
         anneeId: anneeId,
@@ -173,6 +179,12 @@ class ClasseDepot {
         where: 'id = ?',
         whereArgs: [id],
       );
+      // Une classe qui change de niveau ou d'option reçoit le programme de son
+      // nouveau cycle (ajout seulement : rien n'est retiré). Une simple
+      // modification de nom ou de capacité ne remet pas de matière.
+      final changement = lignes.first['niveau_code'] != niveauCode ||
+          ((lignes.first['serie'] as String?) ?? '') != (serie?.code ?? '');
+      if (changement) await ProgrammeDepot.appliquerALaClasse(txn, id);
     });
     await controle.noter('modification', 'classe', id: id, details: nomValide);
   }

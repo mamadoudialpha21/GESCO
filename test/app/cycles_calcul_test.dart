@@ -20,8 +20,9 @@ void main() {
   late Map<String, int> classe;
   late Map<String, int> inscription;
 
-  /// Une classe par cycle, un élève par classe, une note en janvier (mois 1)
-  /// et une en novembre (mois 11).
+  /// Une classe par cycle, un élève par classe. Primaire : une note en décembre
+  /// (12,00) et une en mars (16,00), les compositions. Collège et lycée : une
+  /// note en novembre (12,00) et une en janvier (16,00), la composition 1.
   setUp(() async {
     gdb = await GescoDatabase.ouvrir(
       fabrique: databaseFactoryFfi,
@@ -51,13 +52,13 @@ void main() {
       await s.notes.enregistrer(
         inscriptionId: insc,
         matiereId: m.id,
-        mois: 11,
+        mois: code <= 6 ? 12 : 11,
         saisie: const Saisie.valeur(1200),
       );
       await s.notes.enregistrer(
         inscriptionId: insc,
         matiereId: m.id,
-        mois: 1,
+        mois: code <= 6 ? 3 : 1,
         saisie: const Saisie.valeur(1600),
       );
     }
@@ -75,11 +76,12 @@ void main() {
     expect(c['3e A']!.calendrier.periodes.length, 3);
     expect(c['8e A']!.calendrier.periodes.length, 2);
     expect(c['Tle SM']!.calendrier.periodes.length, 2);
-    expect(c['3e A']!.calendrier, Calendrier.trimestres);
-    expect(c['8e A']!.calendrier, Calendrier.deuxTrimestres);
+    expect(c['3e A']!.calendrier, Calendrier.compositions);
+    expect(c['8e A']!.calendrier, Calendrier.semestresCompo);
+    expect(c['Tle SM']!.calendrier, Calendrier.semestresCompo);
   });
 
-  test('janvier : trimestre 2 au primaire, trimestre 1 au collège et au lycée',
+  test('primaire : une période par composition ; collège et lycée : janvier est la composition 1',
       () async {
     final c = await charger();
     int? moyenne(String nom, String cle) {
@@ -88,24 +90,25 @@ void main() {
       return calcul.resultats(portee).single.moyenne;
     }
 
-    // Primaire : T1 = oct-déc (novembre : 12,00) ; T2 = janv-mars (janvier : 16,00).
+    // Primaire : compo 1 (décembre) 12,00 ; compo 2 (mars) 16,00 ; compo 3 vide.
     expect(moyenne('3e A', 't1'), 1200);
     expect(moyenne('3e A', 't2'), 1600);
     expect(moyenne('3e A', 't3'), isNull);
-    // Collège / lycée : T1 = oct-janv (moyenne de 12 et 16 = 14,00) ; T2 vide.
-    expect(moyenne('8e A', 't1'), 1400);
+    // Collège / lycée : semestre 1 = (composition de janvier 16,00 x 2 + moyenne
+    // des autres mois, ici novembre 12,00) / 3 = 44 / 3 = 14,67 ; semestre 2 vide.
+    expect(moyenne('8e A', 't1'), 1467);
     expect(moyenne('8e A', 't2'), isNull);
-    expect(c['8e A']!.calendrier.portee('t3'), isNull, reason: 'pas de trimestre 3');
-    expect(moyenne('Tle SM', 't1'), 1400);
+    expect(c['8e A']!.calendrier.portee('t3'), isNull, reason: 'pas de période 3');
+    expect(moyenne('Tle SM', 't1'), 1467);
     expect(moyenne('Tle SM', 't2'), isNull);
   });
 
-  test('moyenne annuelle : moyenne des trimestres de la classe', () async {
+  test('moyenne annuelle : moyenne des périodes notées de la classe', () async {
     final c = await charger();
-    // Primaire : (12,00 + 16,00) / 2 trimestres notés = 14,00.
+    // Primaire : (12,00 + 16,00) / 2 compositions notées = 14,00.
     expect(c['3e A']!.resultats(const Portee.annee()).single.moyenne, 1400);
-    // Collège : un seul trimestre noté (14,00).
-    expect(c['8e A']!.resultats(const Portee.annee()).single.moyenne, 1400);
+    // Collège : un seul semestre noté (14,67).
+    expect(c['8e A']!.resultats(const Portee.annee()).single.moyenne, 1467);
   });
 
   test('un calendrier personnalisé pour un cycle ne change que ses classes', () async {
@@ -122,7 +125,7 @@ void main() {
     await s.calendriers.enregistrer(annee, Calendrier.semestres);
     final c = await charger();
     expect(c[libre.nom]!.calendrier, Calendrier.semestres);
-    expect(c['3e A']!.calendrier, Calendrier.trimestres);
+    expect(c['3e A']!.calendrier, Calendrier.compositions);
   });
 
   test('synthèse de l\'établissement : périodes de chaque classe', () async {
@@ -133,9 +136,9 @@ void main() {
     );
     final parNom = {for (final c in synthese.classes) c.classe.classe.nom: c};
     expect(parNom['3e A']!.moyennesPeriodes, [1200, 1600, null]);
-    expect(parNom['8e A']!.moyennesPeriodes, [1400, null]);
-    expect(parNom['Tle SM']!.moyennesPeriodes, [1400, null]);
-    expect(parNom['8e A']!.calendrier, Calendrier.deuxTrimestres);
+    expect(parNom['8e A']!.moyennesPeriodes, [1467, null]);
+    expect(parNom['Tle SM']!.moyennesPeriodes, [1467, null]);
+    expect(parNom['8e A']!.calendrier, Calendrier.semestresCompo);
   });
 
   test('bulletin : niveau, option et périodes du cycle', () async {
@@ -151,7 +154,7 @@ void main() {
       anneeLibelle: '2026-2027',
     );
     expect(tle.single.niveau, 'Terminale · Sciences mathématiques');
-    expect([for (final p in tle.single.periodes) p.libelle], ['Trimestre 1', 'Trimestre 2']);
+    expect([for (final p in tle.single.periodes) p.libelle], ['Semestre 1', 'Semestre 2']);
 
     final primaire = construireBulletins(
       calcul: c['3e A']!,
@@ -163,6 +166,6 @@ void main() {
     );
     expect(primaire.single.niveau, '3ème année');
     expect([for (final p in primaire.single.periodes) p.libelle],
-        ['Trimestre 1', 'Trimestre 2', 'Trimestre 3']);
+        ['Compo 1 (décembre)', 'Compo 2 (mars)', 'Compo 3 (juin)']);
   });
 }

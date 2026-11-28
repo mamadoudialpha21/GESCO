@@ -103,9 +103,43 @@ void main() {
 
   Widget onglet(EtatApp e) => OngletPeriodes(etat: e);
 
-  testWidgets('trois trimestres par défaut, puis deux semestres', (tester) async {
-    await demarrer(tester, onglet);
+  /// Passe le cycle affiché (primaire au départ) à l'ancienne méthode : trois
+  /// trimestres modifiables.
+  Future<void> ancienneMethode(WidgetTester tester) async {
+    await attendre(tester, find.byKey(const Key('methode_ancienne')));
+    await tester.tap(find.byKey(const Key('methode_ancienne')));
+    await tester.pump();
     await attendre(tester, find.byKey(const Key('periode_nom_0')));
+  }
+
+  testWidgets('primaire : la méthode des compositions est celle par défaut', (tester) async {
+    await demarrer(tester, onglet);
+    await attendre(tester, find.byKey(const Key('description_methode')));
+    expect(tester.widget<Text>(find.byKey(const Key('description_methode'))).data,
+        contains('Trois compositions par an'));
+    expect(find.byKey(const Key('periode_nom_0')), findsNothing,
+        reason: 'la structure des compositions n\'est pas modifiable');
+    expect(find.byKey(const Key('option_sequences')), findsNothing);
+    expect(tester.widget<SwitchListTile>(find.byKey(const Key('option_ponderee'))).value, isTrue);
+    await fin(tester);
+  });
+
+  testWidgets('pondération : l\'option « moyenne simple » est enregistrée', (tester) async {
+    await demarrer(tester, onglet);
+    await attendre(tester, find.byKey(const Key('option_ponderee')));
+    await tester.ensureVisible(find.byKey(const Key('option_ponderee')));
+    await tester.tap(find.byKey(const Key('option_ponderee')));
+    await tester.pump();
+    await enregistrer(tester);
+    final c = await attendreCalendrier(tester, (c) => !c.ponderee);
+    expect(c.type, TypePeriodes.compositions);
+    expect(c.ponderee, isFalse);
+    await fin(tester);
+  });
+
+  testWidgets('trois trimestres (ancienne méthode), puis deux semestres', (tester) async {
+    await demarrer(tester, onglet);
+    await ancienneMethode(tester);
     expect(nom(tester, 'periode_nom_0'), 'Trimestre 1');
     expect(nom(tester, 'periode_nom_2'), 'Trimestre 3');
     expect(find.byKey(const Key('periode_nom_3')), findsNothing);
@@ -135,7 +169,7 @@ void main() {
 
   testWidgets('déplacer un mois d\'une période à l\'autre', (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await ancienneMethode(tester);
 
     // Janvier passe du trimestre 2 au trimestre 1.
     await tester.ensureVisible(find.byKey(const Key('periode_0_mois_1')));
@@ -155,7 +189,7 @@ void main() {
   testWidgets('un mois sans période est signalé et bloque l\'enregistrement',
       (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await ancienneMethode(tester);
 
     await tester.ensureVisible(find.byKey(const Key('periode_0_mois_10')));
     await tester.tap(find.byKey(const Key('periode_0_mois_10')));
@@ -167,14 +201,14 @@ void main() {
     expect(find.textContaining('Octobre n\'appartient à aucune période'), findsOneWidget);
     final c = (await tester.runAsync(
         () => etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.primaire)))!;
-    expect(c, Calendrier.defaut, reason: 'rien n\'est enregistré');
+    expect(c, Calendrier.compositions, reason: 'rien n\'est enregistré');
     await fin(tester);
   });
 
   testWidgets('ajouter une période vide est refusé, la retirer rétablit l\'état',
       (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await ancienneMethode(tester);
 
     await tester.ensureVisible(find.byKey(const Key('ajouter_periode')));
     await tester.tap(find.byKey(const Key('ajouter_periode')));
@@ -201,7 +235,7 @@ void main() {
   testWidgets('séquences : activation, enregistrement puis désactivation',
       (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('option_sequences')));
+    await ancienneMethode(tester);
     expect(find.byKey(const Key('sequence_nom_0')), findsNothing);
 
     await tester.ensureVisible(find.byKey(const Key('option_sequences')));
@@ -229,7 +263,7 @@ void main() {
   testWidgets('séquences sur des semestres : coupées par groupes de deux mois',
       (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('type_semestres')));
+    await ancienneMethode(tester);
     await tester.tap(find.byKey(const Key('type_semestres')));
     await tester.pump();
     await tester.ensureVisible(find.byKey(const Key('option_sequences')));
@@ -294,40 +328,51 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('chaque cycle a son calendrier : trois trimestres au primaire, '
-      'deux au collège et au lycée', (tester) async {
+  testWidgets('chaque cycle a sa méthode : compositions en maternelle et au primaire, '
+      'mois et semestres au collège et au lycée', (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await attendre(tester, find.byKey(const Key('description_methode')));
+    String description() =>
+        tester.widget<Text>(find.byKey(const Key('description_methode'))).data!;
 
-    // Primaire : trois trimestres par défaut.
-    expect(nom(tester, 'periode_nom_2'), 'Trimestre 3');
+    // Primaire : trois compositions par défaut.
+    expect(description(), contains('Trois compositions par an'));
 
-    // Collège : deux trimestres par défaut.
-    await tester.tap(find.byKey(const Key('cycle_periodes_college')));
+    // Maternelle : idem.
+    await tester.tap(find.byKey(const Key('cycle_periodes_maternelle')));
     await tester.pump();
-    await attendre(tester, find.byKey(const Key('periode_nom_1')));
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    expect(nom(tester, 'periode_nom_0'), 'Trimestre 1');
-    expect(nom(tester, 'periode_nom_1'), 'Trimestre 2');
-    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
+    await attendre(tester, find.byKey(const Key('description_methode')));
+    expect(description(), contains('Trois compositions par an'));
 
-    // Lycée : idem.
-    await tester.tap(find.byKey(const Key('cycle_periodes_lycee')));
-    await tester.pump();
-    await attendre(tester, find.byKey(const Key('periode_nom_1')));
-    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
+    // Collège puis lycée : mois, compositions et semestres.
+    for (final cle in ['college', 'lycee']) {
+      await tester.tap(find.byKey(Key('cycle_periodes_$cle')));
+      await tester.pump();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await attendre(tester, find.byKey(const Key('description_methode')));
+      expect(description(), contains('Semestre 1 = (2 × composition 1'), reason: cle);
+      expect(find.byKey(const Key('periode_nom_0')), findsNothing, reason: cle);
+    }
     await fin(tester);
   });
 
   testWidgets('enregistrer les périodes du collège ne touche ni le primaire ni '
       'le lycée', (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await attendre(tester, find.byKey(const Key('cycle_periodes_college')));
     await tester.tap(find.byKey(const Key('cycle_periodes_college')));
     await tester.pump();
+    await attendre(tester, find.byKey(const Key('methode_ancienne')));
+    await tester.tap(find.byKey(const Key('methode_ancienne')));
+    await tester.pump();
     await attendre(tester, find.byKey(const Key('periode_nom_1')));
+    expect(nom(tester, 'periode_nom_0'), 'Trimestre 1');
+    expect(find.byKey(const Key('periode_nom_2')), findsNothing);
 
     await tester.tap(find.byKey(const Key('type_semestres')));
     await tester.pump();
@@ -347,15 +392,15 @@ void main() {
           await etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.primaire),
           await etat.services.calendriers.lire(etat.anneeId!, cycle: Cycle.lycee),
         ]))!;
-    expect(autres[0], Calendrier.trimestres);
-    expect(autres[1], Calendrier.deuxTrimestres);
+    expect(autres[0], Calendrier.compositions);
+    expect(autres[1], Calendrier.semestresCompo);
     await fin(tester);
   });
 
   testWidgets('« Autres classes » n\'apparaît que s\'il existe une classe sans '
       'niveau', (tester) async {
     await demarrer(tester, onglet);
-    await attendre(tester, find.byKey(const Key('periode_nom_0')));
+    await attendre(tester, find.byKey(const Key('cycle_periodes_primaire')));
     expect(find.byKey(const Key('cycle_periodes_general')), findsNothing);
     await fin(tester);
 

@@ -116,7 +116,7 @@ void main() {
 
     test('niveau inconnu refusé', () async {
       await expectLater(classes.creer(anneeId: a1, nom: 'X', niveauCode: 0), refus('Niveau inconnu'));
-      await expectLater(classes.creer(anneeId: a1, nom: 'X', niveauCode: 14), refus('Niveau inconnu'));
+      await expectLater(classes.creer(anneeId: a1, nom: 'X', niveauCode: 17), refus('Niveau inconnu'));
     });
 
     test('le niveau du catalogue remplace le texte saisi', () async {
@@ -181,8 +181,8 @@ void main() {
       expect(copiees['4e A']!.cycle, Cycle.primaire);
 
       expect(await calendriers.lire(a2, cycle: Cycle.college), Calendrier.semestres);
-      expect(await calendriers.lire(a2, cycle: Cycle.primaire), Calendrier.trimestres);
-      expect(await calendriers.lire(a2, cycle: Cycle.lycee), Calendrier.deuxTrimestres);
+      expect(await calendriers.lire(a2, cycle: Cycle.primaire), Calendrier.compositions);
+      expect(await calendriers.lire(a2, cycle: Cycle.lycee), Calendrier.semestresCompo);
     });
 
     test('la base refuse une option inconnue ou un niveau hors catalogue', () async {
@@ -192,7 +192,7 @@ void main() {
         throwsA(isA<DatabaseException>()),
       );
       await expectLater(
-        db.insert('classe', {'annee_id': a1, 'nom': 'Y', 'niveau_code': 14}),
+        db.insert('classe', {'annee_id': a1, 'nom': 'Y', 'niveau_code': 17}),
         throwsA(isA<DatabaseException>()),
       );
     });
@@ -216,7 +216,8 @@ void main() {
 
     tearDown(() async => gdb.fermer());
 
-    test('sans configuration : primaire 3 trimestres, collège et lycée 2', () async {
+    test('sans configuration : maternelle et primaire 3 compositions, collège et lycée 2 semestres', () async {
+      expect((await calendriers.lire(a1, cycle: Cycle.maternelle)).periodes.length, 3);
       expect((await calendriers.lire(a1, cycle: Cycle.primaire)).periodes.length, 3);
       expect((await calendriers.lire(a1, cycle: Cycle.college)).periodes.length, 2);
       expect((await calendriers.lire(a1, cycle: Cycle.lycee)).periodes.length, 2);
@@ -226,13 +227,13 @@ void main() {
     test('chaque cycle a son calendrier, indépendant des autres', () async {
       await calendriers.enregistrer(a1, Calendrier.semestres, cycle: Cycle.lycee);
       expect(await calendriers.lire(a1, cycle: Cycle.lycee), Calendrier.semestres);
-      expect(await calendriers.lire(a1, cycle: Cycle.college), Calendrier.deuxTrimestres);
-      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.trimestres);
+      expect(await calendriers.lire(a1, cycle: Cycle.college), Calendrier.semestresCompo);
+      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.compositions);
       expect(await calendriers.lire(a1), Calendrier.trimestres);
 
       await calendriers.enregistrer(a1, Calendrier.semestres);
       expect(await calendriers.lire(a1), Calendrier.semestres);
-      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.trimestres);
+      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.compositions);
     });
 
     test('réenregistrer remplace, réinitialiser revient au modèle du cycle', () async {
@@ -241,7 +242,7 @@ void main() {
       await calendriers.enregistrer(a1, Calendrier.semestres, cycle: Cycle.college);
       expect(await calendriers.lire(a1, cycle: Cycle.college), Calendrier.semestres);
       await calendriers.reinitialiser(a1, cycle: Cycle.college);
-      expect(await calendriers.lire(a1, cycle: Cycle.college), Calendrier.deuxTrimestres);
+      expect(await calendriers.lire(a1, cycle: Cycle.college), Calendrier.semestresCompo);
     });
 
     test('lireTous regroupe tout en une fois', () async {
@@ -249,8 +250,9 @@ void main() {
       await calendriers.enregistrer(a1, Calendrier.semestres);
       final tous = await calendriers.lireTous(a1);
       expect(tous.pour(Cycle.college), Calendrier.semestres);
-      expect(tous.pour(Cycle.primaire), Calendrier.trimestres);
-      expect(tous.pour(Cycle.lycee), Calendrier.deuxTrimestres);
+      expect(tous.pour(Cycle.primaire), Calendrier.compositions);
+      expect(tous.pour(Cycle.maternelle), Calendrier.compositions);
+      expect(tous.pour(Cycle.lycee), Calendrier.semestresCompo);
       expect(tous.pour(null), Calendrier.semestres);
     });
 
@@ -279,7 +281,7 @@ void main() {
       );
       await expectLater(calendriers.lireTous(a1), refus('illisible'));
       // Les autres cycles restent lisibles.
-      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.trimestres);
+      expect(await calendriers.lire(a1, cycle: Cycle.primaire), Calendrier.compositions);
     });
 
     test('supprimer l\'année supprime ses calendriers par cycle', () async {
@@ -367,14 +369,14 @@ void main() {
       // Année déjà configurée : son calendrier reste le même pour tous les cycles.
       final calendriers = CalendrierDepot(gdb.db);
       final a1 = (await AnneeDepot(gdb.db).lister()).firstWhere((a) => a.libelle == '2025-2026');
-      for (final cycle in Cycle.values) {
+      for (final cycle in [Cycle.primaire, Cycle.college, Cycle.lycee]) {
         expect(await calendriers.lire(a1.id, cycle: cycle), Calendrier.semestres,
             reason: cycle.libelle);
       }
       expect(await calendriers.lire(a1.id), Calendrier.semestres);
       // Année jamais configurée : modèles par cycle.
-      expect(await calendriers.lire(a2.id, cycle: Cycle.primaire), Calendrier.trimestres);
-      expect(await calendriers.lire(a2.id, cycle: Cycle.college), Calendrier.deuxTrimestres);
+      expect(await calendriers.lire(a2.id, cycle: Cycle.primaire), Calendrier.compositions);
+      expect(await calendriers.lire(a2.id, cycle: Cycle.college), Calendrier.semestresCompo);
       await gdb.fermer();
     });
 

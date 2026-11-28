@@ -102,7 +102,7 @@ void main() {
     expect(find.byKey(const Key('niveau_libre_classe')), findsNothing);
     expect(find.byKey(const Key('choix_serie_classe')), findsNothing);
     expect(nomSaisi(tester), '7e');
-    expect(find.textContaining('Cycle Collège : 2 trimestres par défaut.'), findsOneWidget);
+    expect(find.textContaining('Cycle Collège : 2 semestres avec compositions par défaut.'), findsOneWidget);
 
     await tester.enterText(champNom(), '7e A');
     await enregistrer(tester, '7e A');
@@ -117,11 +117,11 @@ void main() {
     await fin(tester);
   });
 
-  testWidgets('classe de primaire : trois trimestres annoncés', (tester) async {
+  testWidgets('classe de primaire : trois compositions annoncées', (tester) async {
     await demarrer(tester);
     await ouvrirAjout(tester);
     await choisir(tester, 'choix_niveau_classe', '3ème année · Primaire');
-    expect(find.textContaining('Cycle Primaire : 3 trimestres par défaut.'), findsOneWidget);
+    expect(find.textContaining('Cycle Primaire : 3 compositions par défaut.'), findsOneWidget);
     expect(find.byKey(const Key('choix_serie_classe')), findsNothing);
     expect(nomSaisi(tester), '3e');
     await enregistrer(tester, '3e');
@@ -129,6 +129,22 @@ void main() {
     final c = (await classes(tester)).single;
     expect(c.cycle, Cycle.primaire);
     expect(c.niveauCode, 3);
+    await fin(tester);
+  });
+
+  testWidgets('classe de maternelle : trois compositions annoncées, pas d\'option', (tester) async {
+    await demarrer(tester);
+    await ouvrirAjout(tester);
+    await choisir(tester, 'choix_niveau_classe', 'Moyenne section · Maternelle');
+    expect(find.textContaining('Cycle Maternelle : 3 compositions par défaut.'), findsOneWidget);
+    expect(find.byKey(const Key('choix_serie_classe')), findsNothing);
+    await tester.enterText(champNom(), 'MS A');
+    await enregistrer(tester, 'MS A');
+
+    final c = (await classes(tester)).single;
+    expect(c.cycle, Cycle.maternelle);
+    expect(c.niveauCode, 15);
+    expect(c.niveau, 'Moyenne section');
     await fin(tester);
   });
 

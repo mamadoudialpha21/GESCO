@@ -6,6 +6,7 @@ import '../controle.dart';
 import '../erreurs.dart';
 import '../modeles_donnees.dart';
 import 'aides.dart';
+import 'programme_depot.dart';
 
 /// Gestion des années scolaires.
 ///
@@ -114,6 +115,7 @@ class AnneeDepot {
       });
       if (copierDepuisAnneeId != null) {
         await _copierClasses(txn, copierDepuisAnneeId, nouvelle);
+        await ProgrammeDepot.copierProgramme(txn, copierDepuisAnneeId, nouvelle);
         final calendrier = await txn.query(
           'config_calendrier',
           where: 'annee_id = ?',

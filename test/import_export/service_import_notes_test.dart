@@ -18,6 +18,7 @@ import 'package:gesco/import_export/modele_export.dart';
 import 'package:gesco/import_export/service_import_notes.dart';
 import 'package:gesco/tableur/classeur.dart';
 import 'package:gesco/tableur/xlsx.dart';
+import 'package:gesco/domain/niveaux.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Matcher erreurContenant(String texte) => throwsA(
@@ -52,6 +53,8 @@ void main() {
 
     await s.etablissements.enregistrer(const Etablissement(nom: 'Groupe Scolaire Test'));
     annee = (await s.annees.creer('2026-2027', activer: true)).id;
+    // Ces tests portent sur l'ancien modèle (trimestres) : on le fixe explicitement.
+    await s.calendriers.enregistrer(annee, Calendrier.deuxTrimestres, cycle: Cycle.college);
     classeId = (await s.classes.creer(anneeId: annee, nom: '10e A', niveauCode: 10)).id;
     classe = (await s.classes.obtenir(classeId))!;
     maths = await s.matieres.ajouter(classeId: classeId, nom: 'Maths', coefficient: 100);

@@ -1,8 +1,11 @@
-/// Niveaux d'études, cycles (primaire, collège, lycée) et options du lycée.
+/// Niveaux d'études, cycles (maternelle, primaire, collège, lycée) et options
+/// du lycée.
 ///
 /// Dart pur : utilisé par la base de données, le calcul et l'interface.
 ///
 /// Organisation retenue (système guinéen) :
+/// - maternelle : petite, moyenne et grande section (codes 14 à 16, rangés
+///   avant la 1re année dans les listes) ;
 /// - primaire : 1re à 6e année (codes 1 à 6) ;
 /// - collège : 7e à 10e année (codes 7 à 10) ;
 /// - lycée : 11e année, 12e année et Terminale (codes 11 à 13), avec trois
@@ -14,6 +17,7 @@ import 'recherche.dart';
 
 /// Cycle d'études.
 enum Cycle {
+  maternelle('maternelle', 'Maternelle'),
   primaire('primaire', 'Primaire'),
   college('college', 'Collège'),
   lycee('lycee', 'Lycée');
@@ -58,7 +62,7 @@ enum SerieLycee {
 class NiveauScolaire {
   const NiveauScolaire(this.code, this.libelle, this.abrege, this.cycle);
 
-  /// 1 à 13 (13 = Terminale).
+  /// 1 à 13 (13 = Terminale), ou 14 à 16 pour la maternelle.
   final int code;
 
   /// Nom complet (« 7ème année », « Terminale »).
@@ -75,8 +79,11 @@ class NiveauScolaire {
   bool get aDesOptions => cycle == Cycle.lycee;
 }
 
-/// Les treize niveaux, dans l'ordre.
+/// Les seize niveaux, dans l'ordre scolaire (la maternelle d'abord).
 const List<NiveauScolaire> niveauxScolaires = [
+  NiveauScolaire(14, 'Petite section', 'PS', Cycle.maternelle),
+  NiveauScolaire(15, 'Moyenne section', 'MS', Cycle.maternelle),
+  NiveauScolaire(16, 'Grande section', 'GS', Cycle.maternelle),
   NiveauScolaire(1, '1ère année', '1re', Cycle.primaire),
   NiveauScolaire(2, '2ème année', '2e', Cycle.primaire),
   NiveauScolaire(3, '3ème année', '3e', Cycle.primaire),
@@ -100,6 +107,12 @@ NiveauScolaire? niveauDeCode(int? code) {
   }
   return null;
 }
+
+/// Plus grand code de niveau (grande section de maternelle).
+const int codeNiveauMax = 16;
+
+/// Clé de tri d'un niveau : la maternelle (14 à 16) passe avant la 1re année.
+int ordreDuNiveau(int code) => code >= 14 ? code - 100 : code;
 
 /// Niveaux d'un cycle, dans l'ordre.
 List<NiveauScolaire> niveauxDuCycle(Cycle cycle) =>
@@ -143,6 +156,9 @@ NiveauScolaire? devinerNiveau(String texte) {
   final t = normaliserRecherche(texte);
   if (t.isEmpty) return null;
   if (_motTerminale.hasMatch(t)) return niveauDeCode(NiveauScolaire.codeTerminale);
+  if (t.contains('petite section')) return niveauDeCode(14);
+  if (t.contains('moyenne section')) return niveauDeCode(15);
+  if (t.contains('grande section')) return niveauDeCode(16);
   final chiffres = _nombre.firstMatch(t);
   if (chiffres != null) {
     final n = int.tryParse(chiffres.group(0)!);

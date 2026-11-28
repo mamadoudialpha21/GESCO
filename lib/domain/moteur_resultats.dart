@@ -7,9 +7,16 @@
 /// - chaque moyenne publiée est arrondie à 2 décimales (demi vers le haut) ;
 ///   les moyennes de niveau supérieur sont calculées à partir des moyennes
 ///   publiées du niveau inférieur (vérifiable à la main sur les documents) ;
-/// - période (trimestre, semestre, séquence) = moyenne des moyennes mensuelles
-///   disponibles de ses mois ;
-///   année = moyenne des moyennes de périodes disponibles ;
+/// - période (trimestre, semestre, séquence) = moyenne des moyennes
+///   mensuelles disponibles de ses mois ; année = moyenne des moyennes de
+///   périodes disponibles ;
+/// - période avec composition (semestres du collège et du lycée) :
+///   (poids × composition + moyenne des autres mois) ÷ (poids + 1), la moyenne
+///   des autres mois étant arrondie avant d'être combinée ;
+/// - compositions (maternelle, primaire) : chaque composition est un mois ;
+///   la note finale est la moyenne des moyennes des compositions ;
+/// - avec un calendrier « moyenne simple » ([Calendrier.ponderee] faux), les
+///   coefficients sont ignorés : chaque matière notée compte pour 1 ;
 /// - les matières facultatives ne comptent pas dans les moyennes générales ;
 /// - rang : classement par moyenne décroissante, ex æquo = même rang
 ///   (1, 1, 3 ...).
@@ -112,6 +119,10 @@ class MoteurResultats {
   Iterable<MatiereCoef> get _matieresComptees =>
       matieres.where((m) => !m.facultative);
 
+  /// Poids d'une matière dans la moyenne : son coefficient, ou 1 en moyenne
+  /// simple (coefficients ignorés).
+  int _poids(MatiereCoef matiere) => calendrier.ponderee ? matiere.coefficient : 1;
+
   // ---------------------------------------------------------------- Mois
 
   /// Note retenue pour une matière et un mois (centièmes) : la note chiffrée,
@@ -133,8 +144,8 @@ class MoteurResultats {
     for (final matiere in _matieresComptees) {
       final valeur = _valeur(eleve, matiere.id, mois);
       if (valeur != null) {
-        somme += valeur * matiere.coefficient;
-        coefficients += matiere.coefficient;
+        somme += valeur * _poids(matiere);
+        coefficients += _poids(matiere);
       }
     }
     if (coefficients == 0) return null;
@@ -159,12 +170,53 @@ class MoteurResultats {
   /// Moyenne sur une étendue (mois, période, séquence ou année).
   int? moyenne(DonneesEleve eleve, Portee portee) {
     if (portee.estMois) return moyenneMois(eleve, portee.moisChoisi!);
-    final List<int?> valeurs = portee.estPeriode
-        ? [for (final mois in portee.periodeChoisie!.mois) moyenneMois(eleve, mois)]
-        : [
-            for (final p in calendrier.periodes) moyenne(eleve, Portee.periode(p)),
-          ];
-    return _moyenneDes(valeurs);
+    if (portee.estPeriode) return _moyennePeriode(eleve, portee.periodeChoisie!);
+    return _moyenneDes([
+      for (final p in calendrier.periodes) moyenne(eleve, Portee.periode(p)),
+    ]);
+  }
+
+  /// Moyenne d'une période : moyenne de ses mois, ou, quand elle a une
+  /// composition, (poids × composition + moyenne des autres mois) ÷ (poids + 1).
+  int? _moyennePeriode(DonneesEleve eleve, PeriodeScolaire periode) {
+    final compo = periode.moisCompo;
+    if (compo == null || !periode.mois.contains(compo)) {
+      return _moyenneDes([for (final mois in periode.mois) moyenneMois(eleve, mois)]);
+    }
+    return _combinerCompo(
+      moyenneMois(eleve, compo),
+      [for (final mois in periode.mois) if (mois != compo) moyenneMois(eleve, mois)],
+      periode.poidsCompo,
+    );
+  }
+
+  /// Moyenne des mois d'une période avec composition, sans la composition
+  /// (octobre, novembre et décembre pour le semestre 1), arrondie. Null si
+  /// la période n'a pas de composition ou si aucun de ces mois n'a de moyenne.
+  int? moyenneMoisHorsCompo(DonneesEleve eleve, PeriodeScolaire periode) {
+    final compo = periode.moisCompo;
+    if (compo == null) return null;
+    final valeurs = <int>[];
+    for (final mois in periode.mois) {
+      if (mois == compo) continue;
+      final m = moyenneMois(eleve, mois);
+      if (m != null) valeurs.add(m);
+    }
+    return _moyenneDe(valeurs);
+  }
+
+  /// Combine la composition et la moyenne des autres mois. Une partie absente
+  /// est ignorée (le résultat reste calculé, et signalé incomplet ailleurs) ;
+  /// avec « période complète exigée », il n'y a pas de moyenne.
+  int? _combinerCompo(int? compo, List<int?> autres, int poids) {
+    if (config.exigerPeriodeComplete && (compo == null || autres.any((v) => v == null))) {
+      return null;
+    }
+    final moyenneAutres = _moyenneDe([for (final v in autres) if (v != null) v]);
+    if (compo != null && moyenneAutres != null) {
+      return divisionArrondie(poids * compo + moyenneAutres, poids + 1);
+    }
+    return compo ?? moyenneAutres;
   }
 
   /// Vrai s'il manque des notes dans l'étendue : un mois sans moyenne ou
@@ -191,9 +243,21 @@ class MoteurResultats {
       return _valeur(eleve, matiereId, portee.moisChoisi!);
     }
     if (portee.estPeriode) {
-      return _moyenneDes([
-        for (final mois in portee.periodeChoisie!.mois) _valeur(eleve, matiereId, mois),
-      ]);
+      final periode = portee.periodeChoisie!;
+      final compo = periode.moisCompo;
+      if (compo == null || !periode.mois.contains(compo)) {
+        return _moyenneDes([
+          for (final mois in periode.mois) _valeur(eleve, matiereId, mois),
+        ]);
+      }
+      return _combinerCompo(
+        _valeur(eleve, matiereId, compo),
+        [
+          for (final mois in periode.mois)
+            if (mois != compo) _valeur(eleve, matiereId, mois),
+        ],
+        periode.poidsCompo,
+      );
     }
     return _moyenneDes([
       for (final p in calendrier.periodes)
