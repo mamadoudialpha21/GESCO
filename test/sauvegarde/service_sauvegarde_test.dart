@@ -610,7 +610,8 @@ void main() {
     });
 
     /// Fabrique une sauvegarde d'une base restée à la version 3 du schéma
-    /// (sans la table des absences, ajoutée par la version 4).
+    /// (sans la table des absences, ajoutée par la version 4, ni celle des
+    /// programmes, ajoutée par la version 5).
     Future<File> sauvegardeVersion3() async {
       final v3 = File(p.join(tmp.path, 'v3.db'));
       await admin.gdb.db.execute("VACUUM INTO '${v3.path}'");
@@ -620,6 +621,9 @@ void main() {
       );
       await db.execute('DROP INDEX idx_absence_inscription');
       await db.execute('DROP TABLE absence');
+      // Les programmes par cycle sont arrivés avec la version 5.
+      await db.execute('DROP INDEX idx_programme_annee');
+      await db.execute('DROP TABLE programme_matiere');
       await db.setVersion(3);
       await db.close();
       final base = v3.readAsBytesSync();
@@ -662,6 +666,9 @@ void main() {
       );
       await db.execute('DROP INDEX idx_absence_inscription');
       await db.execute('DROP TABLE absence');
+      // Les programmes par cycle sont arrivés avec la version 5.
+      await db.execute('DROP INDEX idx_programme_annee');
+      await db.execute('DROP TABLE programme_matiere');
       await db.setVersion(3);
       await db.close();
 
